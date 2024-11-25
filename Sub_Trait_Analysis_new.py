@@ -426,6 +426,8 @@ class Plot:
 
 
     def yld_color_cells1(self,row):
+        row[0] = float(row[0])
+        row[1] = float(row[1])
         if row[0] > 5:
             if row[1]>= 50:
                 return ["background-color:#228B22","background-color:#228B22"]
@@ -445,6 +447,8 @@ class Plot:
             return ["",""]
 
     def stkrpct_color_cells1(self, row):  # 青枯病 的赢率及均值差值列上色
+        row[0] = float(row[0])
+        row[1] = float(row[1])
         if row[0] > 10:
             if row[1]>= 50:
                 return ["background-color:red", "background-color:pink"]
@@ -464,6 +468,8 @@ class Plot:
             return ["",""]
 
     def kertpct_color_cells1(self, row):   #霉变粒率病 的赢率及均值差值列上色
+        row[0] = float(row[0])
+        row[1] = float(row[1])
         if row[0] <- 0.5:
             if row[1]>= 50:
                 return ["background-color:#228B22","background-color:#228B22"]
@@ -483,6 +489,8 @@ class Plot:
             return ["",""]
 
     def ertlpct_color_cells1(self, row):   #前倒 的赢率及均值差值列上色
+        row[0] = float(row[0])
+        row[1] = float(row[1])
         if row[0] < -20.0:
             if row[1]>= 50:
                 return ["background-color:#228B22","background-color:#228B22"]
@@ -502,6 +510,8 @@ class Plot:
             return ["",""]
 
     def lrtlpct_color_cells1(self,row): #后倒 的赢率及均值差值列上色
+        row[0] = float(row[0])
+        row[1] = float(row[1])
         if row[0] < -10.0:
             if row[1]>= 50:
                 return ["background-color:#228B22","background-color:#228B22"]
@@ -521,6 +531,8 @@ class Plot:
             return ["",""]
 
     def Leaf_color_cells1(self,row):  # 叶部病害的均值差值和赢率列 上色
+        row[0] = float(row[0])
+        row[1] = float(row[1])
         if row[0] > 1.5:
             if row[1]>= 50:
                 return ["background-color:#228B22","background-color:#228B22"]
@@ -543,6 +555,7 @@ class Plot:
     def ertlpct_and_lrtlpct_color_cells(self,row):   # 前倒和后倒的均值列上色  均用 倒伏倒折率那个
         colors = []
         for val in row:
+            val = float(val)
             if 0 <= val <= 5:
                 colors.append("background-color:#228B22")  # 高抗
             elif 5 < val  <= 10:
@@ -561,6 +574,7 @@ class Plot:
     def stkrpct_color_cells(self,row): # 青枯病的均值列上色
         colors = []
         for val in row:
+            val = float(val)
             if 0 <= val <= 5:
                 colors.append("background-color:#228B22")  # 高抗
             elif 5 < val <= 10:
@@ -580,6 +594,7 @@ class Plot:
     def kertpct_colors_cells_DHB(self, row):
         colors = []
         for val in row:
+            val = float(val)
             if 0.0 < val <= 0.5:
                 colors.append("background-color:#228B22")  # 高抗
             elif 0.5 < val <= 1.0:
@@ -599,6 +614,7 @@ class Plot:
     def kertpct_colors_cells_HHH(self, row):
         colors = []
         for val in row:
+            val = float(val)
             if 0.0 < val <= 0.5:
                 colors.append("background-color:#228B22")  # 高抗
             elif 0.5 < val <= 1.0:
@@ -616,6 +632,7 @@ class Plot:
     def Leaf_color_cells(self, row):     # 叶部病害的均值列上色
         colors = []
         for val in row:
+            val = float(val)
             if 7.5 < val <= 9.0:
                 colors.append("background-color:#228B22")  # 高抗
             elif 5.5 < val <= 7.5:
@@ -630,6 +647,10 @@ class Plot:
                 colors.append("")
         return pd.Series(colors)
 
+    def format_float(self, x):   #float类型数据格式化，保留一位小数
+        if isinstance(x, float):
+            return f'{x:.1f}'.rstrip('0').rstrip('.')
+        return x
 
     def plot(self):
         (selected_year_list, selected_AOAname_list, selected_trait_column_list, selected_ck_name,
@@ -645,6 +666,7 @@ class Plot:
                 trait_summary_df = self.get_num_trait_summary(selected_year_list, selected_AOAname_list,
                                                                   sample_data_df, ck_data_df, trait_column_name)
                 trait_summary_df.reset_index(drop=True, inplace=True)  # 重置索引
+                trait_summary_df = trait_summary_df.applymap(self.format_float)
                 style_df = trait_summary_df.style
                 if "增减产(%)" in trait_summary_df.columns:
                     style_df = style_df.apply(self.yld_color_cells1,axis =1,subset=['增减产(%)','赢率(%)'])
@@ -654,10 +676,12 @@ class Plot:
                 trait_summary_df = self.get_mst_trait_summary(selected_year_list, selected_AOAname_list,
                                                               sample_data_df, ck_data_df, trait_column_name)
                 trait_summary_df.reset_index(drop=True, inplace=True)
+                trait_summary_df = trait_summary_df.applymap(self.format_float)
                 st.dataframe(trait_summary_df)
             elif "%" in self.trait_column_name_to_chinese_name_dict[trait_column_name]:
                 trait_summary_df = self.get_percent_trait_summary(selected_year_list, selected_AOAname_list,
                                                                   sample_data_df, ck_data_df, trait_column_name)
+                trait_summary_df = trait_summary_df.applymap(self.format_float)
                 trait_summary_df.reset_index(drop=True, inplace=True)
                 style_df = trait_summary_df.style
                 if "青枯病比例(%)" in self.trait_column_name_to_chinese_name_dict[trait_column_name]:
@@ -683,6 +707,7 @@ class Plot:
                 trait_summary_df = self.get_grade_trait_summary(selected_year_list, selected_AOAname_list,
                                                                   sample_data_df, ck_data_df, trait_column_name)
                 trait_summary_df.reset_index(drop=True, inplace=True)
+                trait_summary_df = trait_summary_df.applymap(self.format_float)
                 style_df = trait_summary_df.style
                 if '大斑病(等级)' in self.trait_column_name_to_chinese_name_dict[trait_column_name]:  # 大斑，灰斑， 锈病，白斑，弯包叶斑
                     style_df = style_df.apply(self.Leaf_color_cells, subset=['目标品种均值'])
@@ -702,6 +727,7 @@ class Plot:
                 st.dataframe(style_df)
 
 if __name__ == '__main__':
+# def main():
     st.set_page_config(layout='wide')
     ck_query_statement = """
                          select * from "DWS"."TDPheno2024"
