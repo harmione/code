@@ -1,8 +1,9 @@
 import numpy as np
 import streamlit as st
 import pandas as pd
-from streamlit import dataframe
 
+import importlib.util
+from streamlit_authenticator import Authenticate
 
 class CKTable:
     def __init__(self, query_statement):
@@ -108,7 +109,7 @@ class DataFrameColor:
         # 初始化一个与行中单元格数量相同的空列表
         colors = []
         for val in row:
-            result = (val - row.iloc[0]) / row.iloc[0]
+            result = (float(val) - float(row.iloc[0])) / float(row.iloc[0])
             if 0.1 < result:
                 colors.append("background-color:#228B22")  # 极好
             elif 0.05 < result <= 0.1:
@@ -128,6 +129,7 @@ class DataFrameColor:
         # 初始化一个与行中单元格数量相同的空列表
         colors = []
         for val in row:
+            val = float(val)
             if 240 <= val <=260:
                 colors.append("background-color:#228B22")  # 极好
             elif 260 < val <= 280:
@@ -146,6 +148,7 @@ class DataFrameColor:
     def eht_color_cells(self,row):
         colors = []
         for val in row:
+            val = float(val)
             if 0 <= val <= 80:
                 colors.append("background-color:#228B22")  # 极好
             elif 80 < val <= 100:
@@ -164,6 +167,7 @@ class DataFrameColor:
     def tdppct_color_cells(self,row):
         colors=[]
         for val in row:
+            val = float(val)
             if 0<= val <=5:
                 colors.append("background-color:#228B22")  # 高抗
             elif 5 < val <= 10:
@@ -182,6 +186,7 @@ class DataFrameColor:
     def stkrpct_color_cells(self,row):
         colors = []
         for val in row:
+            val = float(val)
             if 0 <= val <= 5:
                 colors.append("background-color:#228B22")  # 高抗
             elif 5 < val <= 10:
@@ -201,6 +206,7 @@ class DataFrameColor:
     def Leaf_colors_cells(self,row):
         colors = []
         for val in row:
+            val = float(val)
             if 7.5 < val <= 9.0:
                 colors.append("background-color:#228B22")  # 高抗
             elif 5.5< val <= 7.5:
@@ -219,6 +225,7 @@ class DataFrameColor:
     def kersr_colors_cells(self, row):
         colors = []
         for val in row:
+            val = float(val)
             if 7.5 < val <= 9.0:
                 colors.append("background-color:#228B22")  # 高抗
             elif 6.5 < val <= 7.5:
@@ -237,6 +244,7 @@ class DataFrameColor:
     def huskcov_colors_cells(self,row):
         colors = []
         for val in row:
+            val = float(val)
             if 7.5 < val <= 9.0:
                 colors.append("background-color:#228B22")  # 高抗
             elif 6.5 < val <= 7.5:
@@ -255,6 +263,7 @@ class DataFrameColor:
     def indara_colors_cells(self,row):
         colors = []
         for val in row:
+            val = float(val)
             if 7.5 < val <= 9.0:
                 colors.append("background-color:#228B22")  # 高抗
             elif 6.5 < val <= 7.5:
@@ -274,6 +283,7 @@ class DataFrameColor:
     def tipfill_colors_cells(self,row):
         colors = []
         for val in row:
+            val = float(val)
             if 8 < val <= 9.0:
                 colors.append("background-color:#228B22")  # 高抗
             elif 7 < val <= 8:
@@ -292,6 +302,7 @@ class DataFrameColor:
     def kertpct_colors_cells_DHB(self,row):
         colors = []
         for val in row:
+            val = float(val)
             if 0.0 < val <= 0.5:
                 colors.append("background-color:#228B22")  # 高抗
             elif 0.5 < val <= 1.0:
@@ -310,6 +321,7 @@ class DataFrameColor:
     def kertpct_colors_cells_HHH(self, row):
         colors = []
         for val in row:
+            val = float(val)
             if 0.0 < val <= 0.5:
                 colors.append("background-color:#228B22")  # 高抗
             elif 0.5 < val <= 1.0:
@@ -506,6 +518,11 @@ class Plot:
         ck_data_df = ck_data_df[ck_data_df["Location_TD"].isin(bookname_set)]              # 拿到选择的对照点的样本数据
         return sample_data_df, ck_data_df
 
+    def format_float(self, x):
+        if isinstance(x, float):
+            return f'{x:.1f}'.rstrip('0').rstrip('.')
+        return x
+
     def __single_sample_num_summary_caculate(self, origin_single_sample_data_df, origin_ck_data_df, trait_column_name_list):
         # 单一样本 数值型 统计信息计算  【包括产量性状类】
         single_sample_summary_df = pd.DataFrame({
@@ -551,6 +568,7 @@ class Plot:
                                                          how='left')
         # 将（“品种综合评分”，“产量排序”）与其他的形状特征进行水平方向（按列）的合并拼接
         single_sample_summary_df = pd.concat([single_sample_summary_df, temp_single_sample_summary_df], axis=1)
+     #   single_sample_summary_df= single_sample_summary_df.applymap(self.format_float)
         return single_sample_summary_df
 
     def __single_sample_grade_summary_caculate(self, origin_single_sample_data_df, origin_ck_data_df, trait_column_name_list,
@@ -602,6 +620,7 @@ class Plot:
                                                          on=["品种名称", "对照名称", "年份", "生态亚区", "种植点次"],
                                                          how='left')
         single_sample_summary_df = pd.concat([single_sample_summary_df, temp_single_sample_summary_df], axis=1)
+      #  single_sample_summary_df = single_sample_summary_df.applymap(self.format_float)
         return single_sample_summary_df
 
     def __single_sample_percent_summary_caculate(self, origin_single_sample_data_df, origin_ck_data_df, trait_column_name_list,
@@ -653,6 +672,7 @@ class Plot:
                                                          on=["品种名称", "对照名称", "年份", "生态亚区", "种植点次"],
                                                          how='left')
         single_sample_summary_df = pd.concat([single_sample_summary_df, temp_single_sample_summary_df], axis=1)
+      #  single_sample_summary_df = single_sample_summary_df.applymap(self.format_float)
         return single_sample_summary_df
 
     def __get_normalized_trait_data_df(self, summary_data_df, trait_column_name_list):
@@ -665,11 +685,12 @@ class Plot:
             trait_column_name = self.trait_column_name_to_chinese_name_dict[trait_column_name].split("(")[0].split('比例')[0]
             # z-score标准化 = （原值-均值）/标准差
             if flag == 1 :
-                summary_data_df[f"{trait_column_name}标准化"] = ((summary_data_df[f"{trait_column_name}均值[%制]"] - np.mean(
-                    summary_data_df[f"{trait_column_name}均值[%制]"])) / np.std(summary_data_df[f"{trait_column_name}均值[%制]"]))
+                temp_num= summary_data_df[f"{trait_column_name}均值[%制]"].astype(float)
+                summary_data_df[f"{trait_column_name}标准化"] = (temp_num - np.mean(temp_num)) / np.std(temp_num)
             else:
-                summary_data_df[f"{trait_column_name}标准化"] = ((summary_data_df[f"{trait_column_name}均值"] - np.mean(
-                    summary_data_df[f"{trait_column_name}均值"])) / np.std(summary_data_df[f"{trait_column_name}均值"]))
+                temp_num = summary_data_df[f"{trait_column_name}均值"].astype(float)
+                summary_data_df[f"{trait_column_name}标准化"] =(temp_num - np.mean(temp_num)) / np.std(temp_num)
+        summary_data_df = summary_data_df.applymap(self.format_float)
         return summary_data_df
 
     # 对照排序                                                                         #__表示私有方法，定义在类内， 接受一个类型为DataFrame类型的参数summary_data_df
@@ -682,6 +703,7 @@ class Plot:
         sample_summary_data_df = sample_summary_data_df.sort_values(by=[trait_column_name],
                                                                     ascending=False)  # 对样本的数据进行降序排序
         summary_data_df = pd.concat([ck_summary_data_df, sample_summary_data_df], axis=0)  # 进行拼接
+        summary_data_df = summary_data_df.applymap(self.format_float)
         return summary_data_df
     
     def __get_sample_score_data_df(self, summary_data_df: pd.DataFrame, trait_column_name_list) -> pd.DataFrame:
@@ -700,10 +722,11 @@ class Plot:
                 if "比例" in chinese_trait_column_name:
                     temp = chinese_trait_column_name
                     chinese_trait_column_name = temp.replace("比例","")
-                score = score + row[chinese_trait_column_name+"标准化"] * self.trait_weight_coefficient_dict[trait_column_name]    # 标准化值* 特定权重系数
+                score = score + float(row[chinese_trait_column_name+"标准化"]) * self.trait_weight_coefficient_dict[trait_column_name]    # 标准化值* 特定权重系数
             return score
 
         summary_data_df["品种综合评分"] = summary_data_df.apply(lambda row: score_caculate(row), axis=1)   # apply方法作用于每一行，并将结果存储在 品种综合评分列里
+        summary_data_df = summary_data_df.applymap(self.format_float)
         return summary_data_df
     
     def num_trait_summary(self, sample_data_df, ck_data_df, trait_column_name_list, selected_caculate_method):
@@ -807,6 +830,7 @@ class Plot:
         #st.dataframe(summary_data_df, hide_index=True)
         
 if __name__ == '__main__':
+#def main():
     st.set_page_config(layout='wide')  # 页面设置宽屏布局
     # 对照
     ck_query_statement = """

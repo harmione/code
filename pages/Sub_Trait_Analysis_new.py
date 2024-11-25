@@ -1,7 +1,10 @@
 import numpy as np
 import streamlit as st
 import pandas as pd
-from dbt_common.ui import color
+
+import importlib.util
+from streamlit_authenticator import Authenticate
+
 
 
 class CKTable:
@@ -12,6 +15,7 @@ class CKTable:
 
     def __get_data_df(self):
         conn = st.connection("postgres")
+        aaaa = self.query_statement
         self.data_df = conn.query(self.query_statement)
         return self.data_df
 
@@ -164,7 +168,7 @@ class Plot:
     def __get_sub_tilte(self, sub_title):
         # 设置每个对比性状单独的表名
         # st.subheader(sub_title)
-                                       # markdown 自定义样式
+          # markdown 自定义样式
         st.markdown(
             """
                 <style>
@@ -185,24 +189,17 @@ class Plot:
         sample_name_set, ck_name= pd.unique(sample_data_df['VarNam']), pd.unique(ck_data_df['VarNam'])[0]  # 样本和对照品种名称的数据
 
         num_trait_summary_df = pd.DataFrame()  # 存储num型结果数据
-        #aoa_name = ["" + f"{item} " for item in AOAname_list]
         for aoa_name in AOAname_list:
-
             ck_bookname_set = pd.unique(ck_data_df[(ck_data_df['VarNam'] == ck_name) & (ck_data_df['AOA_S'] == aoa_name)]["Location_TD"])  # 种的地点
-
             temp_num_trait_summary_df = pd.DataFrame()  # 存储num型结果数据
             for sample_name in sample_name_set:
                 single_sample_num_trait_summary_dict = {}
                 sample_bookname_set = pd.unique(sample_data_df[(sample_data_df['VarNam'] == sample_name) & (sample_data_df['AOA_S'] == aoa_name)]["Location_TD"])  # 样本测试点的集合
-
-
                 ck_bookname_num, sample_bookname_num = len(ck_bookname_set), len(sample_bookname_set)
                 if ck_bookname_num ==0 and sample_bookname_num ==0:
                      continue
                 bookname_intersection_set = set(ck_bookname_set).intersection(sample_bookname_set)   # 取对照和目标测试点的交集
-
                 bookname_intersection_num = len(bookname_intersection_set)
-                #                                               增加量
                 sample_trait_value_list, ck_trait_value_list, increase_num = [], [], 0  # 初始化
                 for loc_name in bookname_intersection_set:     # 对照样本与目标样本在同一测试点下的比较  故要选取 对照样本所在测试点与 目标样本所在测试点的交集
                     try:
@@ -222,7 +219,6 @@ class Plot:
                 ck_trait_mean_value = np.mean(ck_trait_value_list)
                 difference_value = sample_trait_mean_value - ck_trait_mean_value
                 difference_rate = difference_value / ck_trait_mean_value
-                # trait_name = self.trait_column_name_to_chinese_name_dict[trait_column_name]
                 single_sample_num_trait_summary_dict["年份"] = year
                 single_sample_num_trait_summary_dict["生态亚区"] = aoa_name
                 single_sample_num_trait_summary_dict["目标品种"] = sample_name
@@ -248,7 +244,6 @@ class Plot:
         self.__get_sub_tilte(self.trait_column_name_to_chinese_name_dict[trait_column_name])
         sample_name_set, ck_name= pd.unique(sample_data_df['VarNam']), pd.unique(ck_data_df['VarNam'])[0]
         num_trait_summary_df = pd.DataFrame()
-        #aoa_name = ["" + f"{item} " for item in AOAname_list][0]
         for aoa_name in AOAname_list:
             ck_bookname_set = pd.unique(
                 ck_data_df[(ck_data_df['VarNam'] == ck_name) & (ck_data_df['AOA_S'] == aoa_name)][
@@ -281,7 +276,6 @@ class Plot:
                 ck_trait_mean_value = np.mean(ck_trait_value_list)
                 difference_value = sample_trait_mean_value - ck_trait_mean_value
                 difference_rate = difference_value / ck_trait_mean_value * 100
-                # trait_name = self.trait_column_name_to_chinese_name_dict[trait_column_name]
                 single_sample_num_trait_summary_dict["年份"] = year
                 single_sample_num_trait_summary_dict["生态亚区"] = aoa_name
                 single_sample_num_trait_summary_dict["目标品种"] = sample_name
@@ -339,7 +333,6 @@ class Plot:
                 ck_trait_mean_value = np.mean(ck_trait_value_list)
                 difference_value = sample_trait_mean_value - ck_trait_mean_value
                 # difference_rate = difference_value / ck_trait_mean_value
-                # trait_name = self.trait_column_name_to_chinese_name_dict[trait_column_name]
                 single_sample_num_trait_summary_dict["年份"] = year
                 single_sample_num_trait_summary_dict["生态亚区"] = aoa_name
                 single_sample_num_trait_summary_dict["目标品种"] = sample_name
@@ -348,10 +341,10 @@ class Plot:
                 single_sample_num_trait_summary_dict[f"对照品种种植点次"] = ck_bookname_num
                 single_sample_num_trait_summary_dict[f"对比点数"] = bookname_intersection_num
                 single_sample_num_trait_summary_dict[f"赢点数"] = increase_num
-                single_sample_num_trait_summary_dict[f"赢率(%)[%制]"] = increase_rate                 # 上色
+                single_sample_num_trait_summary_dict[f"赢率(%)[%制]"] = increase_rate
                 single_sample_num_trait_summary_dict[f"目标品种均值[%制]"] = sample_trait_mean_value * 100
                 single_sample_num_trait_summary_dict[f"对比品种均值[%制]"] = ck_trait_mean_value  * 100
-                single_sample_num_trait_summary_dict[f"均值差值[%制]"] = difference_value * 100                   # 上色
+                single_sample_num_trait_summary_dict[f"均值差值[%制]"] = difference_value * 100
                 single_sample_num_trait_summary_dict[f'目标品种极小值[%制]'] = (np.min(sample_trait_value_list)*100) if len(sample_trait_value_list) != 0 else np.nan
                 single_sample_num_trait_summary_dict[f"对照品种极小值[%制]"] = (np.min(ck_trait_value_list)*100) if len(ck_trait_value_list) != 0 else np.nan
                 single_sample_num_trait_summary_dict[f'极小值差值[%制]'] = (np.min(sample_trait_value_list) - np.min(ck_trait_value_list)*100) if len(sample_trait_value_list) != 0 and len(ck_trait_value_list) != 0 else np.nan
@@ -368,7 +361,7 @@ class Plot:
     # 打等级制 summary计算
     def get_grade_trait_summary(self, year, AOAname_list, sample_data_df, ck_data_df, trait_column_name):
         self.__get_sub_tilte(self.trait_column_name_to_chinese_name_dict[trait_column_name])
-        threshold = st.slider(f"{self.trait_column_name_to_chinese_name_dict[trait_column_name]}阈值选择", min_value=0, max_value=10, value=0)   # 阈值设置确认一下
+        threshold = st.slider(f"{self.trait_column_name_to_chinese_name_dict[trait_column_name]}阈值选择", min_value=1, max_value=9, value=0)   # 阈值设置
         sample_name_set, ck_name= pd.unique(sample_data_df['VarNam']), pd.unique(ck_data_df['VarNam'])[0]
 
         grade_trait_summary_df = pd.DataFrame()
@@ -406,7 +399,6 @@ class Plot:
                 ck_trait_mean_value = np.mean(ck_trait_value_list)
                 difference_value = sample_trait_mean_value - ck_trait_mean_value
                 # difference_rate = difference_value / ck_trait_mean_value
-                # trait_name = self.trait_column_name_to_chinese_name_dict[trait_column_name]
                 single_sample_num_trait_summary_dict["年份"] = year
                 single_sample_num_trait_summary_dict["生态亚区"] = aoa_name
                 single_sample_num_trait_summary_dict["目标品种"] = sample_name
@@ -642,7 +634,6 @@ class Plot:
     def plot(self):
         (selected_year_list, selected_AOAname_list, selected_trait_column_list, selected_ck_name,
          selected_target_name_list) = self.__get_dropdown_men_bar()
-        # selected_trait_column_list = self.trait_column_name_to_chinese_name_dict.keys()
         for trait_column_name in selected_trait_column_list:
             sample_data_df = self.get_sample_data_df(selected_year_list, selected_AOAname_list,
                                                      selected_target_name_list, trait_column_name)
@@ -713,11 +704,11 @@ class Plot:
 if __name__ == '__main__':
     st.set_page_config(layout='wide')
     ck_query_statement = """
-        select * from "DWS"."TDPheno2024" d
-        """
+                         select * from "DWS"."TDPheno2024"
+                          """
     pheno_query_statement = """
-        select * from "DWS"."TDPheno2024" d
-        """
+                            select * from "DWS"."TDPheno2024" 
+                            """
     ckTable = CKTable(ck_query_statement)
     phenoTable = PhenoTable(pheno_query_statement)
     plot = Plot(ckTable, phenoTable)

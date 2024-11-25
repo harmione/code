@@ -109,4 +109,3 @@ insert_data_into_target(formatted_date,data_to_insert)
 #关闭cursor和连接
 postgres_cursor.close()
 postgres_conn.close()
-
