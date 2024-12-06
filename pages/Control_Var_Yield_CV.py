@@ -16,7 +16,6 @@ class CKPhenoSummaryTable:
 
     def __get_sample_data_df(self):
         conn = st.connection("postgres")
-        #  coalesce(li."Location", li."BookName") as "LocationSelf",
         self.data_df = conn.query(f"""
             with loc as (
                 select distinct 
@@ -57,7 +56,6 @@ class CKPhenoSummaryTable:
             where pc."BookPrj" not like '%TD%' and pc."BookName" =loc."BookName"
             order by loc."Latitude" desc ,sta."Latitude" desc
                 """)
-        # print(self.data_df)
         self.data_df = self.data_df[(self.data_df['Trait'] == 'YLD14')]
         print(self.data_df)
         return self.data_df

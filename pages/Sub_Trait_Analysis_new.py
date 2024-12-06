@@ -115,6 +115,20 @@ class Plot:
         self.chinese_name_to_trait_column_name_dict = {v: k for (k, v) in
                                                        self.trait_column_name_to_chinese_name_dict.items()}
 
+    def __get_title(self, title_content):
+        st.markdown(
+            """
+                <style>
+                .custom-title {
+                    font-size: 30px;
+                    font-weight: bold;
+                }
+                </style>
+            """
+            , unsafe_allow_html=True)
+        st.markdown(f'<p class = "custom-title">{title_content}</p>', unsafe_allow_html=True)
+        return
+
     def __get_dropdown_men_bar(self):
         column_list = st.columns((1, 1, 1))
         with column_list[0]:
@@ -653,6 +667,7 @@ class Plot:
         return x
 
     def plot(self):
+        self.__get_title("分性状分析")
         (selected_year_list, selected_AOAname_list, selected_trait_column_list, selected_ck_name,
          selected_target_name_list) = self.__get_dropdown_men_bar()
         for trait_column_name in selected_trait_column_list:
@@ -726,9 +741,9 @@ class Plot:
                     style_df = style_df.apply(self.Leaf_color_cells1, axis=1, subset=['均值差值', '赢率(%)'])
                 st.dataframe(style_df)
 
-if __name__ == '__main__':
-# def main():
-    st.set_page_config(layout='wide')
+# if __name__ == '__main__':
+def main():
+    # st.set_page_config(layout='wide')
     ck_query_statement = """
                          select * from "DWS"."TDPheno2024"
                           """

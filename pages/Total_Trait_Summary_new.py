@@ -389,9 +389,6 @@ class Plot:
         # 构造函数 接受小ck和小pheno参数对象
         self.ckTable = ckTable
         self.phenoTable = phenoTable
-        # self.num_trait_list = ['YLD14', 'MST', 'PHT', 'EHT']
-        # self.grade_trait_list = ['STKLPCT', 'PMDPCT', 'BARPCT', 'EARTPCT', 'KERTPCT', 'NCLB', 'GLS', 'HUSKCOV', 'KERSR',
-        #                          'TIPFILL']
         # 用于将形状名称转中文展示
         self.trait_column_name_to_chinese_name_dict = {'YLD14_TD': '产量(kg/亩)',
                                                        'KERTPCT_TD': '霉变粒率比例(%)',
@@ -517,6 +514,20 @@ class Plot:
         sample_data_df = sample_data_df[sample_data_df["Location_TD"].isin(bookname_set)]  # 拿到选择的测试点的样本数据
         ck_data_df = ck_data_df[ck_data_df["Location_TD"].isin(bookname_set)]              # 拿到选择的对照点的样本数据
         return sample_data_df, ck_data_df
+
+    def __get_title(self, title_content):
+        st.markdown(
+            """
+                <style>
+                .custom-title {
+                    font-size: 30px;
+                    font-weight: bold;
+                }
+                </style>
+            """
+            , unsafe_allow_html=True)
+        st.markdown(f'<p class = "custom-title">{title_content}</p>', unsafe_allow_html=True)
+        return
 
     def format_float(self, x):
         if isinstance(x, float):
@@ -792,6 +803,7 @@ class Plot:
         return num_trait_column_list, percent_trait_column_list, grade_trait_column_list
 
     def plot(self):
+        self.__get_title("性状总表分析")
         # 先获取在页面上选择的6个框的数据的返回值
         (selected_year_list, selected_AOAname, selected_target_name_list, selected_ck_name,
          selected_trait_column_list, selected_caculate_method) = self.get_dropdown_menu_bar()
@@ -829,10 +841,9 @@ class Plot:
         DataFrameColor(dataframe=summary_data_df).plot()
         #st.dataframe(summary_data_df, hide_index=True)
         
-if __name__ == '__main__':
-#def main():
-    st.set_page_config(layout='wide')  # 页面设置宽屏布局
-    # 对照
+# if __name__ == '__main__':
+def main():
+    # st.set_page_config(layout='wide')  # 页面设置宽屏布局
     ck_query_statement = """
      select * from "DWS"."TDPheno2024" d
     """
