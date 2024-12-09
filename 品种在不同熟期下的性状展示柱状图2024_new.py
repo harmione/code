@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-            
 # @Time : 2024/12/3 09:05
 #  :harmione
-# @FileName: IBP需要的柱状图.py
+# @FileName: 品种在不同暑期下的性状展示柱状图.py
 # @Software: PyCharm
 
 import streamlit as st
@@ -10,22 +10,25 @@ import plotly.express as px
 import numpy as np
 
 class Plotter:
-    def __init__(self, aoa_query_statement):
-        # 构造函数 接受小ck和小pheno参数对象
-        self.query_statement = aoa_query_statement
+    def __init__(self, query_statement):
+        # 构造函数
+        self.query_statement = query_statement
         conn = st.connection("postgres")
         self.data_df = self.__get_data_df()
         self.year_list = self.__get_year_list()
         self.AOAname_list = self.__get_AOAname_list()
         self.trait_column_name_to_chinese_name_dict = {
+                                                        'PMDPCT': '青枯病比例(%)',
                                                         'YLD14': '产量(kg/亩)',
                                                         'MST': '水分(%)',
                                                         'PHT': '株高(cm)',
                                                         'EHT': '穗位(cm)',
-                                                       'GLS': '灰斑病(等级)',
-                                                       'CLB': '大斑病(等级)',
+                                                        'ERTLPCT':'前倒(%)',
+                                                        'GSPPCT':'茎折(%)',
+                                                        'RSTSOU':'南方锈病(等级)',
+                                                        'GLS': '灰斑病(等级)',
+                                                        'CLB': '大斑病(等级)',
                                                         'KERTPCT': '霉变粒率比例(%)',
-                                                       'STKRPCT': '青枯病比例(%)',
                                                        'STKLPCT': '茎倒比例(%)',
                                                        'EARTPCT': '穗腐比例(%)',
                                                        'HUSKCOV': '苞叶覆盖度(等级)',
@@ -52,11 +55,10 @@ class Plotter:
         AOAname_list = list(filter(None, pd.unique(self.data_df["EntryBookPrj"]).tolist()))
         return AOAname_list
 
-    def get_EntryBookname_list(self,selected_AOAname,tar_name_list):
+    def get_EntryBookname_list(self,selected_AOAname,name_list):
         # 根据生态亚区和品种名 查询 区组
        entrybookname_list = list(filter(None, pd.unique(self.data_df[(self.data_df["EntryBookPrj"]==selected_AOAname) &
-                                                                     (self.data_df["Varnam"].isin(tar_name_list))
-                                                        ]["EntryBookName"]).tolist()))
+                                                                     (self.data_df["Varnam"].isin(name_list if isinstance(name_list, list) else [name_list]))]["EntryBookName"]).tolist()))
        return entrybookname_list
 
     def get_var_name_list(self, AOAname):
@@ -99,33 +101,33 @@ class Plotter:
         column_list = st.columns((1,1,1,1,3))  # 设置页面布局的宽度比例
         with column_list[0]:
             selected_data_type = st.selectbox(
-                '选择数据类型',
-                ['性状相对值','性状绝对值']
+                '数据类型',
+                ['性状绝对值','性状相对值']
             )
         with column_list[1]:
             selected_years = st.selectbox(
-                '选择年份',
+                '年份',
                 self.year_list,
             )
             if len(selected_years) == 0:
                 selected_years = [self.year_list[0]]
         with column_list[2]:
             selected_AOAname = st.selectbox(
-                '选择生态亚区',
+                '生态亚区',
                 self.AOAname_list
             )
         # 选择试验类型
         available_types = list(filter(None, pd.unique(self.data_df["TrialType"]).tolist()))
         available_types.insert(0,"ALL")
         with column_list[3]:
-            selected_types = st.multiselect('选择试验类型:',
+            selected_types = st.multiselect('试验类型:',
                                             available_types,
                                             default="ALL")
         if 'ALL' in selected_types:
             selected_types = available_types[1:]
         with column_list[4]:
             selected_trait_list = st.multiselect(
-                '选择性状',
+                '性状',
                 self.trait_column_name_to_chinese_name_dict.values(),
                 default=list(self.trait_column_name_to_chinese_name_dict.values())[0]  # 默认选择第一个
             )
@@ -136,28 +138,25 @@ class Plotter:
         column_list = st.columns((3,2,3))  # 设置页面布局的宽度比例
 
         with column_list[0]:
-            selected_tar_name_list = st.multiselect(
-                '选择目标品种',
+            selected_tar_name_list = st.selectbox(
+                '目标品种',
                 self.get_var_name_list(selected_AOAname),
-                default=self.get_var_name_list(selected_AOAname)[1:3]
+                #default=self.get_var_name_list(selected_AOAname)[1:3]
             )
         with column_list[1]:
             selected_entrybookname = st.selectbox(
-                '选择区组',
+                '区组',
                 self.get_EntryBookname_list(selected_AOAname,selected_tar_name_list)
             )
-        ck_name_list = self.get_ck_name_list(selected_AOAname,selected_entrybookname,selected_tar_name_list)
-        ck_name_list.insert(0,"ALL")
+        self.ck_name_list = self.get_ck_name_list(selected_AOAname,selected_entrybookname,selected_tar_name_list)
         with column_list[2]:
-            selected_ck_names = st.multiselect(
-                '选择对照品种',
-                ck_name_list,
-                default="ALL"
+            selected_ck_name = st.selectbox(
+                '对照品种',
+                self.ck_name_list,
             )
-        if 'ALL' in selected_ck_names:
-            selected_ck_names = ck_name_list[1:]
+
         return (selected_data_type,selected_years,selected_AOAname,selected_types,selected_entrybookname,
-                selected_ck_names, selected_tar_name_list,selected_trait_list)  # 返回选择的值
+                selected_ck_name, selected_tar_name_list,selected_trait_list)  # 返回选择的值
 
     def __get_title(self, title_content):
         st.markdown(
@@ -175,7 +174,7 @@ class Plotter:
 
     def plot(self):
         self.__get_title(title_content="IBP测试品种在不同暑期下的性状展示柱状图_2024")
-        selected_data_type, selected_years, selected_AOAname, selected_types, selected_entrybookname,selected_ck_name_list, selected_target_name_list, selected_trait_list = self.get_dropdown_menu_bar()
+        selected_data_type, selected_years, selected_AOAname, selected_types, selected_entrybookname,selected_ck_name, selected_target_name, selected_trait_list = self.get_dropdown_menu_bar()
         for trait_name in selected_trait_list:
             # 判断 数据类型 和 是性状还是病害
             if trait_name in ["YLD14", "MST", "EHT", "PHT"]:
@@ -187,8 +186,8 @@ class Plotter:
                 if selected_data_type == "性状绝对值":
                     trait_name = "mean_" + trait_name
             #根据选择的条件，筛选数据集
-            sample_data_df = self.get_use_data_df(selected_AOAname,selected_entrybookname,selected_target_name_list, trait_name,selected_years,selected_types)
-            ck_data_df = self.get_use_data_df(selected_AOAname,selected_entrybookname,selected_ck_name_list, trait_name,selected_years,selected_types)
+            sample_data_df = self.get_use_data_df(selected_AOAname,selected_entrybookname,selected_target_name, trait_name,selected_years,selected_types)
+            ck_data_df = self.get_use_data_df(selected_AOAname,selected_entrybookname,self.ck_name_list, trait_name,selected_years,selected_types)   # 获取的是几个ck所有的名字的整体数据
 
             if len(sample_data_df) == 0 or len(ck_data_df) == 0:
                 continue
@@ -201,19 +200,23 @@ class Plotter:
                 else:
                     trait_value_dict["bookname"] = pd.unique(sample_data_df[sample_data_df["BookName"] ==bookname]["LocationSelf"])[0]
 
-                for ck_name in selected_ck_name_list:
+                for ck_name in self.ck_name_list:
                     print(ck_name)
                     try:
-                        trait_value_dict[ck_name] = pd.unique(ck_data_df[(ck_data_df["BookName"] == bookname) & (ck_data_df["Varnam"] == ck_name)& (ck_data_df["CK"] == ck_name)][trait_name])[0]
+                        trait_value_dict[ck_name] = pd.unique(ck_data_df[(ck_data_df["BookName"] == bookname) & (ck_data_df["Varnam"] == ck_name)& (ck_data_df["CK"] == selected_ck_name)][trait_name])[0]
                     except:
                         print(bookname +"没有对照"+ck_name+"的数据")
                         trait_value_dict[ck_name] = 0.0
-                for tar_name in selected_target_name_list:
-                    trait_value_dict[tar_name] = pd.unique(sample_data_df[sample_data_df["BookName"] ==bookname][trait_name])[0] # 该地点的目标品种的性状值
+                #for tar_name in selected_target_name_list:
+                try:
+                    trait_value_dict[selected_target_name] = pd.unique(sample_data_df[(sample_data_df["BookName"] ==bookname)&(sample_data_df["Varnam"] == selected_target_name) & (sample_data_df["CK"] == selected_ck_name)][trait_name])[0] # 该地点的目标品种的性状值
+                except:
+                    print(bookname +"没有目标"+selected_target_name+"的数据")
+                    trait_value_dict[selected_target_name] = 0.0
                 total_data_rows.append(trait_value_dict)
             total_data_df = pd.DataFrame(total_data_rows)
 
-            color_list = selected_ck_name_list + selected_target_name_list
+            color_list = self.ck_name_list + [selected_target_name]
             fig = px.bar(
                 total_data_df,
                 x='bookname',
@@ -276,6 +279,7 @@ class Plotter:
             st.plotly_chart(fig)
 
 if __name__ == '__main__':
+#def main():
     st.set_page_config(layout='wide')
     query_statement = """
                    with loc as (

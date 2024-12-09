@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-            
 # @Time : 2024/11/27 16:15
 #  :harmione
-# @FileName: 品种在不同熟期下的性状展示柱状图.py
+# @FileName: 品种在不同熟期下的性状展示柱状图_2024.py
 # @Software: PyCharm
 import streamlit as st
 import pandas as pd
@@ -43,7 +43,7 @@ class PhenoTable:
         return data_df
 
     def get_sample_name_list(self, selected_AOAname):
-        # 根据熟期 找到对应样本的数据集【21号确认是entryBookname为原打算选择的测试点】【样本点为我们所谓的目标点，CK是测试点】
+        # 根据熟期 找到对应样本的数据集【样本点为我们所谓的目标点，CK是测试点】
         sample_name_list = list(filter(None, pd.unique(self.data_df[(self.data_df["AOA_S"] == selected_AOAname)
                                                        ]["VarNam"]).tolist()))
         return sample_name_list
@@ -152,17 +152,17 @@ class Plotter:
             ck_data_df = self.get_sample_data_df(selected_AOAname,[selected_ck_name], trait_name)
             if len(sample_data_df) == 0 or len(ck_data_df) == 0:
                 continue
-            all_data_df = pd.concat([sample_data_df, ck_data_df], axis=0)
+            all_data_df = pd.concat([ck_data_df,sample_data_df], axis=0)
             fig = px.bar(all_data_df, x='Location_TD', y=trait_name, color='CName', barmode='group'
                          ,
                          title=f"{trait_name.split('(')[0]}比较"
                          , color_discrete_sequence=px.colors.qualitative.D3)
             fig.update_layout(
-                title={'y': 0.9
-                    , 'x': 0.53
-                    , 'xanchor': 'center'
-                    , 'yanchor': 'top'
-                    , 'font': dict(size=18)}  # 标题居中
+                title={'y': 0.9,
+                       'x': 0.53,
+                       'xanchor': 'center',
+                       'yanchor': 'top',
+                       'font': dict(size=18)}  # 标题居中
                 , legend={
                     'orientation': 'h'
                     , 'yanchor': 'bottom'
@@ -175,6 +175,7 @@ class Plotter:
                 , hoverlabel=dict(
                     font_size=18  # 设置悬浮标签字体大小
                 )
+                , margin=dict(t=150)
                 , xaxis=dict(
                     title='测试地点'  # 横轴标题
                     , titlefont=dict(size=16, color='black')  # 标题字体大小
@@ -205,15 +206,15 @@ class Plotter:
         st.markdown("""
                             ##### 注释：
                             - 下拉菜单：选择绘图使用的数据：
-                                - ”选择品种“、”选择熟期“、”选择性状“三个下拉菜单来指定想要查询的品种、熟期和性状；
-                            - 柱形图：展示测试品种在特定熟期下与对照品种的性状比对：
-                                - 横坐标为测试地点，纵坐标为目标性状；
-                                - 每组柱状图中，蓝色标注的为测试品种，其它为对照品种；
-                                - 横坐标中的”跨地点平均数“是指当前选定的品种在选定的熟期下的所有测试地点的性状数据均值。
+                                - “选择生态亚区（熟期）”、“选择性状”、“选择对照品种”、“选择目标品种”四个下拉菜单来指定想要查询的生态亚区和性状及对照和目标品种；
+                            - 柱形图：展示测试品种在特定生态亚区（熟期）下与对照品种的性状对比：
+                                - 横坐标为测试地点，纵坐标为性状；
+                                - 每组柱状图中，蓝色标注的为对照品种，其它为测试目标品种。
                             """)
 
 
 if __name__ == '__main__':
+#def main():
     st.set_page_config(layout='wide')
 
     ck_query_statement = """
