@@ -23,17 +23,12 @@ class DataProcessor:
 
     def load_data(self):
         # 只加载必要的列，并指定数据类型，避免不必要的内存消耗
-        # self.varieties_df = pd.read_csv(self.varieties_path,dtype={'Year': int, 'AOA': str, 'Type': str, 'Name': str, 'PredVal_YLD14': float, 'PredVal_MST': float,'CKpct_YLD14':float,'CKpct_MST':float})
-        # self.controls_df = pd.read_csv(self.controls_path,dtype={'Year': int, 'AOA': str, 'EntryBookPrj':str, 'TrialType':str, 'Varnam': str, 'CheckNo': str})
-        # FROM "DWS"."RNDPhenoAnalysis"
-
         varieties_query = """
         SELECT "Year", "EntryBookPrj", "TrialType", "Varnam", "PredVal_YLD14", "PredVal_MST", "CKpct_YLD14", "CKpct_MST", 
         "BookName"
         FROM "test"."ANOVA.Trial-PCM.EstimatedValue.EntryBookPrj"
         WHERE "BookName"='All' AND "CK"='CKmean'
         """
-        #WHERE "Location"='All' AND   "Type" NOT IN ('TC1','TC2')
 
         controls_query = """
         SELECT DISTINCT "Year", "EntryBookPrj", "TrialType", "Varnam", "CheckNo"
@@ -162,7 +157,7 @@ class UI:
 
 
         # 创建多列布局
-        col0, col1, col2, col3, col4 = st.columns(5)
+        col0, col1, col2, col3 = st.columns(4)
 
         with col0:
             self.selected_data_type = st.selectbox('数据类型', ['性状绝对值', '与对照相对值'])
@@ -209,11 +204,16 @@ class UI:
             (df['TrialType'].isin(self.selected_types))
             ]
         available_names = ['ALL'] + sorted(filtered_df['Varnam'].unique())
-
+        col4, col5 = st.columns(2)
         with col4:
             self.selected_names = st.multiselect('品种名称:', available_names, default='ALL')
             if 'ALL' in self.selected_names:
                 self.selected_names = available_names[1:]
+
+        test_available_names = ['请选择'] + sorted(filtered_df['Varnam'].unique())
+        with col5:
+            self.selected_win_names = st.multiselect('晋级品种名称:', test_available_names, default=test_available_names[0])
+
 
     def display_charts(self):
         #根据用户选择的条件显示图表
@@ -252,7 +252,7 @@ class UI:
             # 分离测试品种和对照品种
             control_group = df_group[df_group['Control']]
             test_group = df_group[~df_group['Control']]
-
+            win_test_group = test_group[test_group['Varnam'].isin(self.selected_win_names if self.selected_win_names[0]!='请选择' else [])]  # 从测试品种中选择晋级品种
             # 添加测试品种
             fig.add_trace(go.Scatter(
                 x=test_group[x_column],
@@ -262,8 +262,6 @@ class UI:
                 marker=dict(color='blue', symbol='circle', size=10),
                 text=test_group['Varnam'],
                 textposition='top center',
-                #hoverinfo='none',# 这里设置为 'none' 以去掉悬浮效果
-                # 在 Python 中，最后一个项目后的逗号是可选的
             ))
 
             #添加对照组
@@ -278,6 +276,20 @@ class UI:
                 #hoverinfo='none',
                 #showlegend=False if control_name in fig.data else True,  # 只在第一次显示图例,避免重复显示堆叠
             ))
+            if not win_test_group.empty:
+                # 增添晋级品种
+                fig.add_trace(go.Scatter(
+                    x=win_test_group[x_column],
+                    y=win_test_group[y_column],
+                    mode='markers+text',
+                    name='晋级品种',
+                    marker=dict(color='green', symbol='circle', size=10),
+                    text=win_test_group['Varnam'],
+                    textposition='top center',
+                    # hoverinfo='none',
+                    # showlegend=False if control_name in fig.data else True,  # 只在第一次显示图例,避免重复显示堆叠
+                ))
+
 
             # 更新布局
             fig.update_layout(
@@ -346,13 +358,8 @@ class UI:
                 - 对照品种固定在图中
                 """)
 
-#if __name__ == "__main__":
-def main():
+if __name__ == "__main__":
     #主程序块：加载和处理数据，然后显示用户界面
-
-    # current_dir = os.path.dirname(__file__)
-    # varieties_path = os.path.join(current_dir, '..', 'data', 'DWS_RNDPhenoAnalysis.csv')
-    # controls_path = os.path.join(current_dir, '..', 'data', 'DWS_Pheno.csv')
 
     engine = create_db_engine()
     # data_processor = DataProcessor(varieties_path, controls_path)
@@ -361,7 +368,7 @@ def main():
     data_processor.process_data()
 
     ui = UI(data_processor)
-   # ui.set_page_config()      2024.11.27注释
-    ui.display_title("产量与水分关系图_2024")
+    ui.set_page_config()
+    ui.display_title("产量与水分关系图")
     ui.display_filters()
     ui.display_charts()
