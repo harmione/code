@@ -2,7 +2,7 @@
 Description: 
 Author: zhangweilong
 Date: 2024-12-27 15:00:42
-LastEditTime: 2024-12-27 15:33:32
+LastEditTime: 2024-12-27 15:37:25
 LastEditors: zhangweilong
 '''
 import requests
@@ -72,8 +72,8 @@ def search_top_k(query: str, library_path: str, k: int = 3) -> List[Tuple[str, s
 def generate_response_with_prompt(prompt: str, model_name: str = "glm4:latest") -> str:
     url = OLLAMA_URL_GEN()
     payload = {"model":model_name,"prompt": prompt,"stream": False}
-    payload_j = json.dumps(payload,ensure_ascii=False,indent=4)
-    response = requests.post(url, headers=HEADERS, data=payload_j.encode('utf-8'))
+    # payload_j = json.dumps(payload,ensure_ascii=False,indent=4)
+    response = requests.post(url, headers=HEADERS, json=payload)
     if response.status_code == 200:
         return response.json().get("response", "")
     return "Error generating response."
