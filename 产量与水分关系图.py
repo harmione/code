@@ -23,17 +23,12 @@ class DataProcessor:
 
     def load_data(self):
         # 只加载必要的列，并指定数据类型，避免不必要的内存消耗
-        # self.varieties_df = pd.read_csv(self.varieties_path,dtype={'Year': int, 'AOA': str, 'Type': str, 'Name': str, 'PredVal_YLD14': float, 'PredVal_MST': float,'CKpct_YLD14':float,'CKpct_MST':float})
-        # self.controls_df = pd.read_csv(self.controls_path,dtype={'Year': int, 'AOA': str, 'EntryBookPrj':str, 'TrialType':str, 'Varnam': str, 'CheckNo': str})
-        # FROM "DWS"."RNDPhenoAnalysis"
-
         varieties_query = """
-        SELECT "Year", "EntryBookPrj", "TrialType", "Varnam", "PredVal_YLD14", "PredVal_PHT", "CKpct_YLD14", "CKpct_PHT", 
-        "BookName"
-        FROM "test"."ANOVA.Trial-PCM.EstimatedValue.EntryBookPrj"
-        WHERE "BookName"='All' AND "CK"='CKmean'
+        SELECT "Year", "EntryBookPrj", "TrialType", "Varnam", "PredVal_YLD14", "PredVal_MST", "CKpct_YLD14", "CKpct_MST", 
+        "BookName","CK"
+        FROM "test"."ANOVA.Trial-P1P2.EstimatedValue.EntryBookPrj"
+        WHERE "BookName"='All'
         """
-        #WHERE "Location"='All' AND   "Type" NOT IN ('TC1','TC2')
 
         controls_query = """
         SELECT DISTINCT "Year", "EntryBookPrj", "TrialType", "Varnam", "CheckNo"
@@ -69,7 +64,6 @@ class DataProcessor:
         #最后，使用 drop 方法移除 _merge 列，因为此列已经不再需要，它只是用来辅助标记对照品种的。
 
 def create_db_engine():
-    # Make sure you replace the .env path if needed or directly assign the values
     env_file_path = '.env'
     env_data_dict = {}
     with open(env_file_path, 'r') as f: #用with 语句打开文件，这样可以保证文件在读取后会被正确关闭。
@@ -119,7 +113,7 @@ class UI:
             unsafe_allow_html=True
         )
         st.markdown(f'<p class="custom-title">{title_content}</p>', unsafe_allow_html=True)
-        # st.title('产量水分分布图')
+        # st.title('产量水分分布图2024')
         # st.title 是 Streamlit 中用于显示标题的函数，但它不允许自定义样式如字体大小和加粗。
         # 如果你需要自定义样式，那么 st.markdown 是一个更灵活的选择
 
@@ -162,10 +156,10 @@ class UI:
 
 
         # 创建多列布局
-        col0, col1, col2, col3, col4 = st.columns(5)
+        col0, col1, col2, col3 = st.columns((2,1,2,1))
 
         with col0:
-            self.selected_data_type = st.selectbox('数据类型', ['性状绝对值', '与对照相对值'])
+            self.selected_data_type = st.selectbox('数据类型', ['与对照相对值','性状绝对值'])
 
         # 选择年份
         with col1:
@@ -209,11 +203,29 @@ class UI:
             (df['TrialType'].isin(self.selected_types))
             ]
         available_names = ['ALL'] + sorted(filtered_df['Varnam'].unique())
-
+        col4, col5,col6 = st.columns((2,2,1))
         with col4:
             self.selected_names = st.multiselect('品种名称:', available_names, default='ALL')
             if 'ALL' in self.selected_names:
                 self.selected_names = available_names[1:]
+
+        test_available_names = ['请选择'] + sorted(filtered_df['Varnam'].unique())
+        with col5:
+            self.selected_win_names = st.multiselect('晋级品种名称:', test_available_names, default=test_available_names[0])
+
+        ck_name_list = list(filter(None, pd.unique(filtered_df[(filtered_df["EntryBookPrj"].isin(self.selected_periods if isinstance(self.selected_periods , list) else [self.selected_periods])) & (
+            filtered_df["Varnam"].isin(self.selected_names if isinstance(self.selected_names , list) else [self.selected_names]))
+                                                                ]["CK"]).tolist()))
+        # 除去CKmean和在Varnam中没有数据的 ，只保留剩余的对照品种名。
+        result_list = []
+        for name in ck_name_list:
+            if filtered_df["Varnam"].isin([name]).any() and name != "CKmean":
+                result_list.append(name)
+        # 按首字母进行排序
+        ck_name_list =['请选择'] + sorted(result_list)
+
+        with col6:
+            self.selected_ck_name = st.selectbox('对照品种名称（数据类型为相对值时进行选择）', ck_name_list)
 
     def display_charts(self):
         #根据用户选择的条件显示图表
@@ -229,14 +241,16 @@ class UI:
 
         if self.selected_data_type == '性状绝对值':
             y_column = 'PredVal_YLD14'
-            x_column = 'PredVal_PHT'
+            x_column = 'PredVal_MST'
             y_label = '产量(kg/亩)'
-            x_label = '株高(cm)'
+            x_label = '水分(%)'
+            value_name = 'CKmean'
         else:
             y_column = 'CKpct_YLD14'
-            x_column = 'CKpct_PHT'
+            x_column = 'CKpct_MST'
             y_label = '相对产量值'
-            x_label = '相对株高值'
+            x_label = '相对水分值'
+            value_name = self.selected_ck_name if self.selected_win_names !='请选择' else ''
 
         grouped_df = filtered_df.groupby(['Year', 'EntryBookPrj', 'TrialType'])
         num_cols = 2  # 每行显示的图表数量
@@ -248,12 +262,14 @@ class UI:
                 cols = st.columns(num_cols)
 
             fig = go.Figure()
-
-            # 分离测试品种和对照品种
-            control_group = df_group[df_group['Control']]
-            test_group = df_group[~df_group['Control']]
-
-            # 添加测试品种
+            if self.selected_win_names[0]=='请选择' and len(self.selected_win_names) >1 :
+                self.selected_win_names = self.selected_win_names[1:]
+            # 分离测试品种和对照品种0
+            if value_name !='' or value_name=='CKmean':
+                control_group = df_group[(df_group['Control'])&(df_group['CK']==value_name)]
+                test_group = df_group[(~df_group['Control'])&(df_group['CK']==value_name)]
+                win_test_group = test_group[(test_group['CK']==value_name)&(test_group['Varnam'].isin(self.selected_win_names if self.selected_win_names[0]!='请选择' else []))]  # 从测试品种中选择晋级品种
+             # 添加测试品种
             fig.add_trace(go.Scatter(
                 x=test_group[x_column],
                 y=test_group[y_column],
@@ -262,8 +278,6 @@ class UI:
                 marker=dict(color='blue', symbol='circle', size=10),
                 text=test_group['Varnam'],
                 textposition='top center',
-                #hoverinfo='none',# 这里设置为 'none' 以去掉悬浮效果
-                # 在 Python 中，最后一个项目后的逗号是可选的
             ))
 
             #添加对照组
@@ -278,6 +292,42 @@ class UI:
                 #hoverinfo='none',
                 #showlegend=False if control_name in fig.data else True,  # 只在第一次显示图例,避免重复显示堆叠
             ))
+            if not win_test_group.empty:
+                # 增添晋级品种
+                fig.add_trace(go.Scatter(
+                    x=win_test_group[x_column],
+                    y=win_test_group[y_column],
+                    mode='markers+text',
+                    name='晋级品种',
+                    marker=dict(color='green', symbol='circle', size=10),
+                    text=win_test_group['Varnam'],
+                    textposition='top center',
+                    # hoverinfo='none',
+                    # showlegend=False if control_name in fig.data else True,  # 只在第一次显示图例,避免重复显示堆叠
+                ))
+            if self.selected_data_type == '与对照相对值' and self.selected_ck_name!='请选择':
+                # 增加y=100的水平直线
+                fig.add_shape(
+                    type="line",
+                    x0=min(test_group[x_column])*0.9, x1=max(test_group[x_column])*1.1,  # 线的起始和结束x坐标
+                    y0=100, y1=100,  # 线的y坐标
+                    line=dict(
+                        color="purple",  # 线的颜色
+                        width=3,  # 线宽
+                        dash="dashdot"  # 线型
+                    )
+                )
+                # 增加x=100的竖直直线
+                fig.add_shape(
+                    type="line",
+                    x0=100, x1=100,  # 线的起始和结束x坐标
+                    y0=min(test_group[y_column])*0.9, y1=max(test_group[y_column])*1.1,  # 线的y坐标
+                    line=dict(
+                        color="orange",  # 线的颜色
+                        width=3,  # 线宽
+                        dash="dash"  # 线型
+                    )
+                )
 
             # 更新布局
             fig.update_layout(
@@ -344,24 +394,21 @@ class UI:
                     - 熟期：EMSP：早熟春玉米区；MMSP：中熟春玉米区；LMSP：晚熟春玉米区；NCSU：夏玉米北部区；MCSU：夏玉米中部区；SCSU：夏玉米南部区；SWCN：西南玉米区；SP：春玉米区；SU:夏玉米区
                     - 品种名称：选择想看的品种名称，支持手动输入
                 - 对照品种固定在图中
+                - 晋级样本在选择后会展示于图上，以绿色展示。
+                注意：对照品种选择时，需要在选择了数据类型为性状相对值时。
                 """)
 
 #if __name__ == "__main__":
 def main():
     #主程序块：加载和处理数据，然后显示用户界面
 
-    # current_dir = os.path.dirname(__file__)
-    # varieties_path = os.path.join(current_dir, '..', 'data', 'DWS_RNDPhenoAnalysis.csv')
-    # controls_path = os.path.join(current_dir, '..', 'data', 'DWS_Pheno.csv')
-
     engine = create_db_engine()
-    # data_processor = DataProcessor(varieties_path, controls_path)
     data_processor = DataProcessor(engine)
     data_processor.load_data()
     data_processor.process_data()
 
     ui = UI(data_processor)
     #ui.set_page_config()
-    ui.display_title("产量与株高关系图_2024")
+    ui.display_title("产量与水分关系图")
     ui.display_filters()
     ui.display_charts()
