@@ -2,7 +2,7 @@
 Description: 
 Author: zhangweilong
 Date: 2025-03-07 14:28:15
-LastEditTime: 2025-03-07 15:08:21
+LastEditTime: 2025-03-07 16:49:42
 LastEditors: zhangweilong
 '''
 import sqlite3
@@ -11,45 +11,44 @@ import time
 
 # 1. 创建数据库和插入测试数据
 def create_database():
-    conn = sqlite3.connect('test.db')
+    for count in range(6):
+        conn = sqlite3.connect(f'test_{count}.db')
+        cursor = conn.cursor()
+        # 创建表
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS test_table (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                value TEXT
+            )
+        ''')
+        # 插入测试数据
+        for i in range(100000):
+            cursor.execute("INSERT INTO test_table (value) VALUES (?)", (f"Value {i}",))
+        conn.commit()
+        conn.close()
+
+
+def query_database(query,idx = 0):
+    # print(f"Thread {idx} is executing query: {query}")
+    conn = sqlite3.connect(f'test_{idx}.db')
     cursor = conn.cursor()
-    # 创建表
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS test_table (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            value TEXT
-        )
-    ''')
-    # 插入测试数据
-    for i in range(100000):
-        cursor.execute("INSERT INTO test_table (value) VALUES (?)", (f"Value {i}",))
-    conn.commit()
-    conn.close()
+    start_time = time.time()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    end_time = time.time()
+    if(idx != 10):
+        print(f"Thread {idx} 查询耗时: {end_time - start_time} 秒")
+    return results, end_time - start_time
 
-# 2. 定义查询函数
-class QueryDatabase:
-    def __init__(self):
-        self.conn_list = [sqlite3.connect('test.db', check_same_thread=False) for _ in range(6)]
-        self.cursor_list = [self.conn_list[i].cursor() for i in range(6)]
-    def query_database(self,query,idx = 0):
-        # print(f"Thread {idx} is executing query: {query}")
-        self.cursor_list[idx].execute(query)
-        results = self.cursor_list[idx].fetchall()
-        return results
-    def __del__(self):
-        for i in range(6):
-            self.conn_list[i].close()
-
-QD = QueryDatabase()
 
 # 3. 使用单线程执行查询
 def single_thread_query():
-    queries = [
-        "SELECT * FROM test_table"
-    ]
+    queries = "SELECT * FROM test_table"
+    threads = []
     start_time = time.time()
-    for query in queries:
-        QD.query_database(query)
+    thread = threading.Thread(target=query_database, args=(queries,0))
+    thread.start()
+    thread.join()
     end_time = time.time()
     print(f"单线程查询耗时: {end_time - start_time} 秒")
 
@@ -66,7 +65,7 @@ def multi_thread_query():
     start_time = time.time()
     count = 1
     for query in queries:
-        thread = threading.Thread(target=QD.query_database, args=(query,count))
+        thread = threading.Thread(target=query_database, args=(query,count))
         threads.append(thread)
         thread.start()
         count += 1
