@@ -13704,4 +13704,5 @@ city_data ={
     }
 }
 
-print(city_data["上海"]["上海"]["上海"]["AREAID"])
+if __name__ == "__main__":
+    print(city_data["上海"]["上海"]["上海"]["AREAID"])
