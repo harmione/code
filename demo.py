@@ -2,7 +2,7 @@
 Description: 
 Author: zhangweilong
 Date: 2025-02-25 11:48:29
-LastEditTime: 2025-03-11 10:37:08
+LastEditTime: 2025-03-11 10:46:02
 LastEditors: zhangweilong
 '''
 from selenium import webdriver
@@ -17,6 +17,7 @@ chrome_options.add_argument('--headless')
 chrome_options.add_argument('--disable-gpu')
 
 # 设置 ChromeDriver 路径
+# ! 需要按照自己的路径修改
 chromedriver = "./chromedriver-win64/chromedriver.exe" 
 
 # 创建 ChromeDriver 服务
