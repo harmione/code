@@ -9,6 +9,9 @@ from random import sample
 import numpy as np
 import streamlit as st
 import pandas as pd
+from networkx.drawing import rescale_layout_dict
+from numpy.ma.core import choose
+
 
 class Plotter:
     def __init__(self,query_statement):
@@ -17,8 +20,8 @@ class Plotter:
         self.query_statement = query_statement
         self.data_df = self.__get_data_df()
         self.AOAname_list = self.__get_AOAname_list()
-        self.trait_column_name_to_chinese_name_dict = {'YLD14_TD': '产量(kg/亩)',
-                                                       'STKRPCT_TD': '青枯病比例(%)',
+        self.trait_column_name_to_chinese_name_dict = {'STKRPCT_TD': '青枯病比例(%)',
+                                                        'YLD14_TD': '产量(kg/亩)',
                                                        'KERTPCT_TD': '霉变粒率比例(%)',
                                                        'MST': '水分(%)',
                                                        'GLS': '灰斑病(等级)',
@@ -90,7 +93,7 @@ class Plotter:
                 .custom-sub-title {
                     font-size: 21px;
                     font-weight: bold;
-                    margin-left:200px;    #左侧边距
+                    margin-left:230px;    #左侧边距
                 }
                 </style>
             """
@@ -350,27 +353,277 @@ class Plotter:
                     style_list[i] = "background-color:red"  # 高感HS
         return style_list
 
+    # 点对点分析
+    def point_to_point_analysis(self,df):
+        # 获取地点的名称
+        locations = df.columns[1:]
+        # 筛选第一列的内容
+        target_name = df.iloc[1, 0]
+        cknames = df.iloc[2:, 0].values
+        results = []  # 暂存结果
+        # 遍历每个对照品种
+        for ckname in cknames:
+            # 找到目标品种和对照品种的行索引
+            target_row = df[df.iloc[:, 0] == target_name]
+            control_row = df[df.iloc[:, 0] == ckname]
+
+            # 获取交集地点（两品种数据均有效且为数值的地点）
+            valid_locations = []
+            for loc in locations:
+                target_val = target_row[loc].values[0]
+                control_val = control_row[loc].values[0]
+                # 检查两品种数据是否非空且可转换为数值
+                try:
+                    target_numeric = pd.to_numeric(target_val, errors='coerce')  # 将无法转换为数值的值直接转为NaN
+                    control_numeric = pd.to_numeric(control_val, errors='coerce')
+                    if pd.notna(target_numeric) and pd.notna(control_numeric):
+                        valid_locations.append(loc)
+                except:
+                    continue
+
+            # 交集点数
+            point_count = len(valid_locations)
+
+            if point_count > 0:  # 只有当有交集时才计算
+                try:
+                    # 目标品种和对照品种在交集地点的数据
+                    target_values = pd.to_numeric(target_row[valid_locations].values[0], errors='coerce')
+                    control_values = pd.to_numeric(control_row[valid_locations].values[0], errors='coerce')
+
+                    # 计算均值
+                    target_mean = np.mean(target_values)
+                    control_mean = np.mean(control_values)
+
+                    # 计算均值差（目标品种 - 对照品种）
+                    mean_diff = target_mean - control_mean
+
+                    # 计算极值
+                    target_max = np.max(target_values)
+                    target_min = np.min(target_values)
+                    control_max = np.max(control_values)
+                    control_min = np.min(control_values)
+                    # 存储结果
+                    results.append({
+                        '目标品种': target_name,
+                        '对照品种': ckname,
+                        '对比点次': f"{point_count:.0f}",
+                        '目标品种均值': f"{target_mean:.2f}",
+                        '对照品种均值': f"{control_mean:.2f}",
+                        '均值差': f"{mean_diff:.2f}",
+                        '目标品种极大值': f"{target_max:.2f}",
+                        '目标品种极小值': f"{target_min:.2f}",
+                        '对照品种极大值': f"{control_max:.2f}",
+                        '对照品种极小值': f"{control_min:.2f}"
+                    })
+                except Exception as e:
+                    print(f"Error processing {target_name} vs {ckname}: {str(e)}")
+                    continue
+            else:
+                print(f"No valid intersection points for {target_name} vs {ckname}.")
+                results.append({'目标品种': target_name,
+                        '对照品种': ckname,
+                        '对比点次': f"{point_count:.0f}",
+                        '目标品种均值': f"{target_mean:.2f}",
+                        '对照品种均值': f"{control_mean:.2f}",
+                        '均值差': f"{mean_diff:.2f}",
+                        '目标品种极大值': f"{target_max:.2f}",
+                        '目标品种极小值': f"{target_min:.2f}",
+                        '对照品种极大值': f"{control_max:.2f}",
+                        '对照品种极小值': f"{control_min:.2f}"})
+        # 转换为 DataFrame 输出结果
+        results_df = pd.DataFrame(results)
+        # 对齐 results_df，使其第一行与 df 的第三行对齐
+        # 在 results_df 顶部添加两行空数据
+        n_rows_styled = len(df)
+        n_rows_results = len(results_df)
+        aligned_results_df = pd.DataFrame(
+            np.nan,
+            index=range(n_rows_styled),
+            columns=results_df.columns
+        )
+        # 将 results_df 的数据插入，从索引 2 开始（对应 styled_df 的第三行）
+        if n_rows_results > 0:
+            # 确保只插入与 filtered_df 品种顺序一致的结果
+            filtered_varieties = df.iloc[1:, 0].values  # 从第二行开始的品种名称
+            result_indices = []
+            for i, row in results_df.iterrows():
+                if row['对照品种'] in filtered_varieties:
+                    result_indices.append(i)
+            if result_indices:
+                aligned_results_df.iloc[2:2 + len(result_indices), :] = results_df.iloc[result_indices].values
+
+        # 拼接 styled_df 和 aligned_results_df
+        combined_df = pd.concat([df, aligned_results_df], axis=1)
+
+        return combined_df
+
+    # 差异点分析
+    def difference_point_analysis(self, df):
+        """
+        差异点分析函数 - 只分析两个品种数值不同的性状点
+        保持与 point_to_point_analysis 相似的输出结构和逻辑
+
+        参数:
+            df: DataFrame, 包含品种名称(第一列)和各地点性状数据
+
+        返回:
+            包含差异点分析结果的DataFrame，与原数据合并
+        """
+        # 获取地点的名称(从第二列开始)
+        locations = df.columns[1:]
+        # 获取目标品种名称(第二行第一列)
+        target_name = df.iloc[1, 0]
+        # 获取对照品种名称列表(从第三行开始)
+        cknames = df.iloc[2:, 0].values
+
+        results = []  # 暂存结果
+
+        # 遍历每个对照品种
+        for ckname in cknames:
+            # 找到目标品种和对照品种的行索引
+            target_row = df[df.iloc[:, 0] == target_name]
+            control_row = df[df.iloc[:, 0] == ckname]
+
+            # 获取差异地点(两品种数据均有效、可转换为数值且数值不同的地点)
+            diff_locations = []
+            target_diff_values = []
+            control_diff_values = []
+            if ckname == 'SK6H':
+                sgjskjfks =1
+            for loc in locations:
+                target_val = target_row[loc].values[0]
+                control_val = control_row[loc].values[0]
+
+                # 检查两品种数据是否非空、可转换为数值且不同
+                try:
+                    target_numeric = pd.to_numeric(target_val, errors='coerce')
+                    control_numeric = pd.to_numeric(control_val, errors='coerce')
+
+                    if (pd.notna(target_numeric) and
+                            pd.notna(control_numeric) and
+                            (target_numeric != control_numeric)):
+                        diff_locations.append(loc)
+                        target_diff_values.append(target_numeric)
+                        control_diff_values.append(control_numeric)
+                except:
+                    continue
+
+            # 差异点数
+            diff_point_count = len(diff_locations)
+
+            if diff_point_count > 0:  # 只有当有差异点时才计算
+                try:
+                    # 计算均值(仅使用差异点)
+                    target_mean = np.mean(target_diff_values)
+                    control_mean = np.mean(control_diff_values)
+
+                    # 计算均值差(目标品种 - 对照品种)
+                    mean_diff = target_mean - control_mean
+
+                    # 计算极值(仅使用差异点)
+                    target_max = np.max(target_diff_values)
+                    target_min = np.min(target_diff_values)
+                    control_max = np.max(control_diff_values)
+                    control_min = np.min(control_diff_values)
+
+                    # 计算差异率(差异点占所有有效点的比例)
+                    # 首先计算总有效点数(两品种都有有效数据的点)
+                    valid_locations = [
+                        loc for loc in locations
+                        if (pd.notna(pd.to_numeric(target_row[loc].values[0], errors='coerce')) and
+                            pd.notna(pd.to_numeric(control_row[loc].values[0], errors='coerce')))
+                    ]
+                    total_valid_points = len(valid_locations)
+                    diff_ratio = diff_point_count / total_valid_points if total_valid_points > 0 else 0
+
+                    # 存储结果(保持与原函数相似的格式，增加差异点相关信息)
+                    results.append({
+                        '目标品种': target_name,
+                        '对照品种': ckname,
+                        '对比点次': f"{total_valid_points:.0f}",  # 两品种都有有效数据的总点数
+                        '差异点次': f"{diff_point_count:.0f}",  # 新增: 数值不同的点数
+                        '差异率(%)': f"{diff_ratio * 100:.2f}",  # 新增: 差异点占比
+                        '目标品种均值': f"{target_mean:.2f}",
+                        '对照品种均值': f"{control_mean:.2f}",
+                        '均值差': f"{mean_diff:.2f}",
+                        '目标品种极大值': f"{target_max:.2f}",
+                        '目标品种极小值': f"{target_min:.2f}",
+                        '对照品种极大值': f"{control_max:.2f}",
+                        '对照品种极小值': f"{control_min:.2f}",
+                        '差异点列表': ', '.join(diff_locations) if diff_locations else '无'  # 新增: 差异点名称
+                    })
+                except Exception as e:
+                    print(f"Error processing {target_name} vs {ckname}: {str(e)}")
+                    continue
+            else:
+                print(f"No difference points found for {target_name} vs {ckname} (all values are same or invalid).")
+                results.append({'目标品种': target_name,
+                                '对照品种': ckname,
+                                '对比点次': 0,  # 两品种都有有效数据的总点数
+                                '差异点次': 0,  # 新增: 数值不同的点数
+                                '差异率(%)': 0,  # 新增: 差异点占比
+                                '目标品种均值': f"{target_mean:.2f}",
+                                '对照品种均值': f"{control_mean:.2f}",
+                                '均值差': f"{mean_diff:.2f}",
+                                '目标品种极大值': f"{target_max:.2f}",
+                                '目标品种极小值': f"{target_min:.2f}",
+                                '对照品种极大值': f"{control_max:.2f}",
+                                '对照品种极小值': f"{control_min:.2f}",
+                                '差异点列表': ', '.join(diff_locations) if diff_locations else '无'  })
+
+        # 转换为 DataFrame 输出结果
+        results_df = pd.DataFrame(results)
+
+        # 对齐 results_df，使其与原数据格式一致
+        n_rows_original = len(df)
+        n_rows_results = len(results_df)
+
+        aligned_results_df = pd.DataFrame(
+            np.nan,
+            index=range(n_rows_original),
+            columns=results_df.columns
+        )
+
+        # 将 results_df 的数据插入，从索引 2 开始(对应原数据的第三行)
+        if n_rows_results > 0:
+            # 确保只插入与 df 品种顺序一致的结果
+            filtered_varieties = df.iloc[2:, 0].values  # 从第三行开始的品种名称
+            result_indices = []
+
+            for i, row in results_df.iterrows():
+                if row['对照品种'] in filtered_varieties:
+                    result_indices.append(i)
+
+            if result_indices:
+                aligned_results_df.iloc[2:2 + len(result_indices), :] = results_df.iloc[result_indices].values
+
+        # 拼接原数据和结果
+        combined_df = pd.concat([df, aligned_results_df], axis=1)
+
+        return combined_df
+
 
     def plot(self):
         self.__get_title("TD性状透视图2025")
+
         selected_AOA_list, selected_trait_column_list,selected_sample_name,selected_CK_names = self.get_dropdown_menu_bar()
-        ###############################  selected_CK_name和selected_sample_name未作处理
 
         sample_data_df = self.get_sample_data_df(selected_AOA_list)
-        for trait_name in selected_trait_column_list:
+        for trait_name in selected_trait_column_list:  # 遍历性状
             self.__get_sub_tilte(self.trait_column_name_to_chinese_name_dict[trait_name])
             Location_set = pd.unique(sample_data_df["Location_TD"])
             sample_name_set = pd.unique(sample_data_df['VarNam'])
+            ## 选择目标品种
             if selected_sample_name in sample_name_set:
-                # 若用户手动选择目标品种，会自动将该品种提至首行
+            # 用户手动选择目标品种，会自动将该品种提至首行
                 idx = np.where(sample_name_set == selected_sample_name)[0][0]
                 sample_name_set = np.concatenate(([sample_name_set[idx]],
                                                   np.delete(sample_name_set, idx)))
-            #将 selected_CK_names 依次排列在 selected_sample_name 之后
+            ## 选择对照品种
+            # 将 selected_CK_names 依次排列在 selected_sample_name 之后
             # 提取当前 sample_name_set 中不在 selected_CK_names 和 selected_sample_name 中的元素
             remaining_names = [name for name in sample_name_set if
                                name not in [selected_sample_name] + selected_CK_names]
-
             # 重新构建 sample_name_set
             # 顺序: selected_sample_name -> selected_CK_names -> 剩余元素
             sample_name_set = np.concatenate(([selected_sample_name],
@@ -419,8 +672,16 @@ class Plotter:
             sorted_location = summary_df.iloc[row_index].sort_values(ascending=False).index
             sorted_df = summary_df[sorted_location]
 
+
             # 重置索引
             sorted_df.reset_index(drop=True, inplace=True)
+            ##### 设置"点对点全点分析"比较  用对比的两个品种全部交集点的数据进行比较。
+            # 分析按钮
+            # if st.button("点对点全点分析",key=trait_name+'point2point_button'):
+            #     sorted_df = self.point_to_point_analysis(sorted_df)
+            # if st.button("差异点分析",key=trait_name+'diffpoint_button'):
+            #     sorted_df = self.difference_point_analysis(sorted_df)
+
             # 设置两列索引
             col0,col1 = st.columns((1, 6))
 
@@ -442,59 +703,84 @@ class Plotter:
                 select_location = st.multiselect(
                     '选择地点进行隐藏该列数据',
                     sorted_location[1:],
-                    default =None,
+                    #default =None,
+                    default='平度',
                     key= trait_name+'location'
                 )
-
+            filtered_df = sorted_df
             with col1:
+
+                # 为几个分析设计其对应的布局
+                col11, col12,col13,col14 = st.columns((1,1,3,2))
+                # 在列中放置按钮并获取点击状态
+                with col11:
+                    point2point_clicked = st.button("点对点全点分析", key=trait_name + 'point2point_button')
+                with col12:
+                    diffpoint_clicked = st.button("差异点分析", key=trait_name + 'diffpoint_button')
+                with col13:
+                    keypoint_choose = st.multiselect(
+                                        '',
+                                        sorted_location[1:],
+                                        placeholder="选择关键点",
+                                        label_visibility="collapsed")  # 移除label的占位
+                with col14:
+                    keypoint_clicked = st.button("关键点分析", key=trait_name + 'keypoint_button')
                 # 根据 selected_indices 显示或隐藏对应的行
-                filtered_df = sorted_df.drop(
-                    index=list(st.session_state.hidden_rows)) if st.session_state.hidden_rows else sorted_df
-                # 对选了的地点，进行移除操作
+                if st.session_state.hidden_rows:
+                    if point2point_clicked:
+                        filtered_df = self.point_to_point_analysis(filtered_df)
+                    if diffpoint_clicked:
+                        filtered_df = self.difference_point_analysis(filtered_df)
+                    filtered_df = filtered_df.drop(index=list(st.session_state.hidden_rows))
+                else:
+                    if point2point_clicked:
+                        filtered_df = self.point_to_point_analysis(filtered_df)
+                    if diffpoint_clicked:
+                        filtered_df = self.difference_point_analysis(filtered_df)
+                # 若地点列被选择，进行隐藏操作
                 if select_location is not None:
                     filtered_df = filtered_df.drop(
                         columns=select_location
                     )
 
+                # 显示结果，只对前 n 列原数据  进行上色  对后面的分析数据不执行
+                column_length = (len(sorted_location) - len(select_location)) if select_location is not None else len(sorted_location)
+                styled_columns = filtered_df.columns[:column_length]  #  排除掉点对点分析、差异点分析等的那些列
+
                 # 对第一列的品种名称及平均数 进行整体添加背景色
-                styled_df = filtered_df.style.apply(self.highlight_first_column, axis=1)   # axis=1 返回需要是list或数组
+                styled_df = filtered_df.style.apply(self.highlight_first_column, axis=1,subset=styled_columns)   # axis=1 返回需要是list或数组
+
                 # 给透视图的性状上色
                 if trait_name == 'STKRPCT_TD':  # 青枯病
-                    styled_df = styled_df.apply(self.stkrpct_color_cells,axis=1)
+                    styled_df = styled_df.apply(self.stkrpct_color_cells,axis=1,subset=styled_columns)
                 if trait_name == 'PHT':  # 株高
-                    styled_df = styled_df.apply(self.pht_color_cells, axis=1)
+                    styled_df = styled_df.apply(self.pht_color_cells, axis=1,subset=styled_columns)
                 if trait_name == 'EHT':  # 穗位
-                    styled_df = styled_df.apply(self.eht_color_cells, axis=1)
+                    styled_df = styled_df.apply(self.eht_color_cells, axis=1,subset=styled_columns)
                 if trait_name in ['GLS','CLB','RSTCOM','CULSPT','CWLSPT']:  # 叶部病害（大斑病、灰斑病、普通锈病、白斑病、弯孢叶斑病）  没按照顺序
-                    styled_df = styled_df.apply(self.leaf_colors_cells, axis=1)
+                    styled_df = styled_df.apply(self.leaf_colors_cells, axis=1,subset=styled_columns)
                 if trait_name == 'HUSKCOV':  # 苞叶覆盖度
-                    styled_df = styled_df.apply(self.huskcov_color_cells, axis=1)
+                    styled_df = styled_df.apply(self.huskcov_color_cells, axis=1,subset=styled_columns)
                 if trait_name == 'KERSR':    # 结实性
-                    styled_df = styled_df.apply(self.kersr_color_cells, axis=1)
+                    styled_df = styled_df.apply(self.kersr_color_cells, axis=1,subset=styled_columns)
                 if trait_name == 'TIPFILL':  # 秃尖
-                    styled_df = styled_df.apply(self.tipfill_color_cells, axis=1)
+                    styled_df = styled_df.apply(self.tipfill_color_cells, axis=1,subset=styled_columns)
                 if trait_name == 'TDPPCT_TD':  # 倒伏倒折
-                    styled_df = styled_df.apply(self.tdppct_color_cells, axis=1)
+                    styled_df = styled_df.apply(self.tdppct_color_cells, axis=1,subset=styled_columns)
                 if trait_name == 'INDARA':  # 玉米螟
-                    styled_df = styled_df.apply(self.indara_color_cells, axis=1)
-                #  一般来说，分析的时候只选择一个生态亚区，来分析，但是若选择了两个，则可能会存在不同的上色标准     这里需要修改
-                sub1 = ['北方超早', '北方极早', '北方早熟', '东华北中早', '东华北中熟', '东华北中晚']
-                sub2 = ['黄淮南', '黄淮北']
+                    styled_df = styled_df.apply(self.indara_color_cells, axis=1,subset=styled_columns)
+                if trait_name == 'KERTPCT': # 霉变粒率
+                    #  一般来说，分析的时候只选择一个生态亚区，来分析，但是若选择了两个，则可能会存在不同的上色标准
+                    sub1 = ['北方超早', '北方极早', '北方早熟', '东华北中早', '东华北中熟', '东华北中晚']
+                    sub2 = ['黄淮南', '黄淮北']
 
-                if pd.Series(selected_AOA_list).isin(sub1).any():
-                    styled_df = styled_df.apply(self.kertpct_color_cells_HHH, axis=1)
-                elif pd.Series(selected_AOA_list).isin(sub2).any():
-                    styled_df = styled_df.apply(self.kertpct_color_cells_DHB, axis=1)
-
-                # 设置"点对点全点分析"比较  用上ckname 和 没有style样式的 filtered_df
-                for name in filtered_df.iloc[1:,0]:      # 用iloc()方法来迭代dataframe
-                    varname = name
-
-
+                    if pd.Series(selected_AOA_list).isin(sub1).any():
+                        styled_df = styled_df.apply(self.kertpct_color_cells_HHH, axis=1,subset=styled_columns)
+                    elif pd.Series(selected_AOA_list).isin(sub2).any():
+                        styled_df = styled_df.apply(self.kertpct_color_cells_DHB, axis=1,subset=styled_columns)
 
                 # 显示过滤后的 DataFrame
                 st.dataframe(styled_df, height=700)
-
 
         st.markdown("""
                         ##### 注释：
