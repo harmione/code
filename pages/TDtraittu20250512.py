@@ -726,22 +726,30 @@ class Plotter:
                 with col14:
                     keypoint_clicked = st.button("关键点分析", key=trait_name + 'keypoint_button')
                 # 根据 selected_indices 显示或隐藏对应的行
-                if st.session_state.hidden_rows:
+                if st.session_state.hidden_rows and select_location is not None:   #id和地点都被选择
+                    filtered_df = filtered_df.drop(columns=select_location)   # 移除地点
                     if point2point_clicked:
                         filtered_df = self.point_to_point_analysis(filtered_df)
                     if diffpoint_clicked:
                         filtered_df = self.difference_point_analysis(filtered_df)
-                    filtered_df = filtered_df.drop(index=list(st.session_state.hidden_rows))
-                else:
+                    filtered_df = filtered_df.drop(index=list(st.session_state.hidden_rows))    # 移除id索引
+                elif select_location is not None:    # 地点被选择
+                    filtered_df = filtered_df.drop(columns=select_location)
                     if point2point_clicked:
                         filtered_df = self.point_to_point_analysis(filtered_df)
                     if diffpoint_clicked:
                         filtered_df = self.difference_point_analysis(filtered_df)
-                # 若地点列被选择，进行隐藏操作
-                if select_location is not None:
-                    filtered_df = filtered_df.drop(
-                        columns=select_location
-                    )
+                elif st.session_state.hidden_rows:  # id索引被选择
+                    if point2point_clicked:
+                        filtered_df = self.point_to_point_analysis(filtered_df)
+                    if diffpoint_clicked:
+                        filtered_df = self.difference_point_analysis(filtered_df)
+                    filtered_df = filtered_df.drop(index=list(st.session_state.hidden_rows))  # 移除id索引
+                else:         # 地点和 id索引均没有被选择
+                    if point2point_clicked:
+                        filtered_df = self.point_to_point_analysis(filtered_df)
+                    if diffpoint_clicked:
+                        filtered_df = self.difference_point_analysis(filtered_df)
 
                 # 显示结果，只对前 n 列原数据  进行上色  对后面的分析数据不执行
                 column_length = (len(sorted_location) - len(select_location)) if select_location is not None else len(sorted_location)
