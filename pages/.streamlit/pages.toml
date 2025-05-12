@@ -1,0 +1,23 @@
+[[pages]]
+path = "pages/Sub_Trait_Analysis_new.py"
+name = "分性状对比最新"
+
+[[pages]]
+path = "pages/Sub_Trait_Analysis_origin.py"
+name = "分性状对比原始"
+
+[[pages]]
+path = "pages/getdata.py"
+name = "获取产量及其他性状每日趋势"
+
+[[pages]]
+path = "pages/Total_Trait_Summary_new.py"
+name = "性状总表最新"
+
+[[pages]]
+path = "pages/Total_Trait_Summary_Origin.py"
+name = "性状总表原"
+
+[[pages]]
+path = "pages/Control_Var_Yield_CV.py"
+name = "对照品种产量变异系数"

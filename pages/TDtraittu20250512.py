@@ -20,11 +20,11 @@ class Plotter:
         self.query_statement = query_statement
         self.data_df = self.__get_data_df()
         self.AOAname_list = self.__get_AOAname_list()
-        self.trait_column_name_to_chinese_name_dict = {'STKRPCT_TD': '青枯病比例(%)',
+        self.trait_column_name_to_chinese_name_dict = {'GLS': '灰斑病(等级)',
+                                                      'STKRPCT_TD': '青枯病比例(%)',
                                                         'YLD14_TD': '产量(kg/亩)',
                                                        'KERTPCT_TD': '霉变粒率比例(%)',
                                                        'MST': '水分(%)',
-                                                       'GLS': '灰斑病(等级)',
                                                        'CLB': '大斑病(等级)',
                                                        'PHT': '株高(cm)',
                                                        'EHT': '穗位(cm)',
@@ -113,7 +113,7 @@ class Plotter:
             selected_trait_column_list = st.multiselect(
                 '选择性状',
                 self.trait_column_name_to_chinese_name_dict.values(),
-                default=list(self.trait_column_name_to_chinese_name_dict.values())[0:1]  # 默认选择第一个
+                default=list(self.trait_column_name_to_chinese_name_dict.values())[0:2]  # 默认选择第一个
             )
             if len(selected_trait_column_list) == 0:
                 # 未选择情况下 的异常判断
@@ -353,7 +353,7 @@ class Plotter:
                     style_list[i] = "background-color:red"  # 高感HS
         return style_list
 
-    # 点对点分析
+    # 点对点分析    用对比的两个品种全部交集点的数据进行比较
     def point_to_point_analysis(self,df):
         # 获取地点的名称
         locations = df.columns[1:]
@@ -488,8 +488,139 @@ class Plotter:
             diff_locations = []
             target_diff_values = []
             control_diff_values = []
-            if ckname == 'SK6H':
-                sgjskjfks =1
+            for loc in locations:
+                target_val = target_row[loc].values[0]
+                control_val = control_row[loc].values[0]
+
+                # 检查两品种数据是否非空、可转换为数值且不同
+                try:
+                    target_numeric = pd.to_numeric(target_val, errors='coerce')
+                    control_numeric = pd.to_numeric(control_val, errors='coerce')
+
+                    if (pd.notna(target_numeric) and pd.notna(control_numeric) and
+                            (target_numeric != control_numeric)):
+                        diff_locations.append(loc)
+                        target_diff_values.append(target_numeric)
+                        control_diff_values.append(control_numeric)
+                except:
+                    continue
+
+            # 差异点数
+            diff_point_count = len(diff_locations)
+
+            if diff_point_count > 0 :  # 只有当有差异点时才计算
+                try:
+                    # 计算均值(仅使用差异点)
+                    target_mean = np.mean(target_diff_values)
+                    control_mean = np.mean(control_diff_values)
+
+                    # 计算均值差(目标品种 - 对照品种)
+                    mean_diff = target_mean - control_mean
+
+                    # 计算极值(仅使用差异点)
+                    target_max = np.max(target_diff_values)
+                    target_min = np.min(target_diff_values)
+                    control_max = np.max(control_diff_values)
+                    control_min = np.min(control_diff_values)
+
+                    # 计算差异率(差异点占所有有效点的比例)
+                    # 首先计算总有效点数(两品种都有有效数据的点)
+                    valid_locations = [
+                        loc for loc in locations
+                        if (pd.notna(pd.to_numeric(target_row[loc].values[0], errors='coerce')) and
+                            pd.notna(pd.to_numeric(control_row[loc].values[0], errors='coerce')))
+                    ]
+                    total_valid_points = len(valid_locations)
+                    diff_ratio = diff_point_count / total_valid_points if total_valid_points > 0 else 0
+
+                    # 存储结果(保持与原函数相似的格式，增加差异点相关信息)
+                    results.append({
+                        '目标品种': target_name,
+                        '对照品种': ckname,
+                        '对比点次': f"{total_valid_points:.0f}",  # 两品种都有有效数据的总点数
+                        '差异点次': f"{diff_point_count:.0f}",  # 新增: 数值不同的点数
+                        '差异率(%)': f"{diff_ratio * 100:.2f}",  # 新增: 差异点占比
+                        '目标品种均值': f"{target_mean:.2f}",
+                        '对照品种均值': f"{control_mean:.2f}",
+                        '均值差': f"{mean_diff:.2f}",
+                        '目标品种极大值': f"{target_max:.2f}",
+                        '目标品种极小值': f"{target_min:.2f}",
+                        '对照品种极大值': f"{control_max:.2f}",
+                        '对照品种极小值': f"{control_min:.2f}",
+                        '差异点列表': ', '.join(diff_locations) if diff_locations else '无'  # 新增: 差异点名称
+                    })
+                except Exception as e:
+                    print(f"Error processing {target_name} vs {ckname}: {str(e)}")
+                    continue
+            else:
+                print(f"No difference points found for {target_name} vs {ckname} (all values are same or invalid).")
+                results.append({'目标品种': target_name,
+                                '对照品种': ckname,
+                                '对比点次': 0,  # 两品种都有有效数据的总点数
+                                '差异点次': 0,  # 新增: 数值不同的点数
+                                '差异率(%)': 0,  # 新增: 差异点占比
+                                '目标品种均值': f"",
+                                '对照品种均值': f"",
+                                '均值差': f"",
+                                '目标品种极大值': f"",
+                                '目标品种极小值': f"",
+                                '对照品种极大值': f"",
+                                '对照品种极小值': f"",
+                                '差异点列表': ', '.join(diff_locations) if diff_locations else '无'  })
+
+        # 转换为 DataFrame 输出结果
+        results_df = pd.DataFrame(results)
+
+        # 对齐 results_df，使其与原数据格式一致
+        n_rows_original = len(df)
+        n_rows_results = len(results_df)
+
+        aligned_results_df = pd.DataFrame(
+            np.nan,
+            index=range(n_rows_original),
+            columns=results_df.columns
+        )
+
+        # 将 results_df 的数据插入，从索引 2 开始(对应原数据的第三行)
+        if n_rows_results > 0:
+            # 确保只插入与 df 品种顺序一致的结果
+            filtered_varieties = df.iloc[2:, 0].values  # 从第三行开始的品种名称
+            result_indices = []
+
+            for i, row in results_df.iterrows():
+                if row['对照品种'] in filtered_varieties:
+                    result_indices.append(i)
+
+            if result_indices:
+                aligned_results_df.iloc[2:2 + len(result_indices), :] = results_df.iloc[result_indices].values
+
+        # 拼接原数据和结果
+        combined_df = pd.concat([df, aligned_results_df], axis=1)
+
+        return combined_df
+
+
+    # 关键点分析    人为选出一些压力大的点来分析。图中有两个点标注的“关键”。
+    def key_point_analysis(self, df, keypoint_list):
+        # 获取选择的关键地点的名称
+        locations = keypoint_list
+        # 获取目标品种名称(第二行第一列)
+        target_name = df.iloc[1, 0]
+        # 获取对照品种名称列表(从第三行开始)
+        cknames = df.iloc[2:, 0].values
+
+        results = []  # 暂存结果
+
+        # 遍历每个对照品种
+        for ckname in cknames:
+            # 找到目标品种和对照品种的行索引
+            target_row = df[df.iloc[:, 0] == target_name]
+            control_row = df[df.iloc[:, 0] == ckname]
+
+            # 获取差异地点(两品种数据均有效、可转换为数值且数值不同的地点)
+            diff_locations = []
+            target_diff_values = []
+            control_diff_values = []
             for loc in locations:
                 target_val = target_row[loc].values[0]
                 control_val = control_row[loc].values[0]
@@ -549,8 +680,7 @@ class Plotter:
                         '目标品种极大值': f"{target_max:.2f}",
                         '目标品种极小值': f"{target_min:.2f}",
                         '对照品种极大值': f"{control_max:.2f}",
-                        '对照品种极小值': f"{control_min:.2f}",
-                        '差异点列表': ', '.join(diff_locations) if diff_locations else '无'  # 新增: 差异点名称
+                        '对照品种极小值': f"{control_min:.2f}"
                     })
                 except Exception as e:
                     print(f"Error processing {target_name} vs {ckname}: {str(e)}")
@@ -562,14 +692,13 @@ class Plotter:
                                 '对比点次': 0,  # 两品种都有有效数据的总点数
                                 '差异点次': 0,  # 新增: 数值不同的点数
                                 '差异率(%)': 0,  # 新增: 差异点占比
-                                '目标品种均值': f"{target_mean:.2f}",
-                                '对照品种均值': f"{control_mean:.2f}",
-                                '均值差': f"{mean_diff:.2f}",
-                                '目标品种极大值': f"{target_max:.2f}",
-                                '目标品种极小值': f"{target_min:.2f}",
-                                '对照品种极大值': f"{control_max:.2f}",
-                                '对照品种极小值': f"{control_min:.2f}",
-                                '差异点列表': ', '.join(diff_locations) if diff_locations else '无'  })
+                                '目标品种均值': f"",
+                                '对照品种均值': f"",
+                                '均值差': f"",
+                                '目标品种极大值': f"",
+                                '目标品种极小值': f"",
+                                '对照品种极大值': f"",
+                                '对照品种极小值': f""})
 
         # 转换为 DataFrame 输出结果
         results_df = pd.DataFrame(results)
@@ -650,6 +779,9 @@ class Plotter:
                 trait_summary_df = pd.concat([trait_summary_df, summary_df],ignore_index=True)  # 一行一行拼接数据
             # 将全为nan的地点列过滤掉    也要更新地点列表
             trait_summary_df = trait_summary_df.dropna(axis=1,how='all')
+            if len(trait_summary_df.columns) == 0:
+                st.markdown("""无数据""")
+                continue
             remain_locations = set(trait_summary_df.columns)
             updated_location_set = set(Location_set).intersection(remain_locations)
             # 将该测试点的所有品种的数值求和取均值
@@ -672,15 +804,8 @@ class Plotter:
             sorted_location = summary_df.iloc[row_index].sort_values(ascending=False).index
             sorted_df = summary_df[sorted_location]
 
-
             # 重置索引
             sorted_df.reset_index(drop=True, inplace=True)
-            ##### 设置"点对点全点分析"比较  用对比的两个品种全部交集点的数据进行比较。
-            # 分析按钮
-            # if st.button("点对点全点分析",key=trait_name+'point2point_button'):
-            #     sorted_df = self.point_to_point_analysis(sorted_df)
-            # if st.button("差异点分析",key=trait_name+'diffpoint_button'):
-            #     sorted_df = self.difference_point_analysis(sorted_df)
 
             # 设置两列索引
             col0,col1 = st.columns((1, 6))
@@ -703,8 +828,6 @@ class Plotter:
                 select_location = st.multiselect(
                     '选择地点进行隐藏该列数据',
                     sorted_location[1:],
-                    #default =None,
-                    default='平度',
                     key= trait_name+'location'
                 )
             filtered_df = sorted_df
@@ -721,37 +844,48 @@ class Plotter:
                     keypoint_choose = st.multiselect(
                                         '',
                                         sorted_location[1:],
+                                        default = ['桓台','惠民','赵县','新乡','章丘','冠县','内丘'],
                                         placeholder="选择关键点",
                                         label_visibility="collapsed")  # 移除label的占位
                 with col14:
                     keypoint_clicked = st.button("关键点分析", key=trait_name + 'keypoint_button')
-                # 根据 selected_indices 显示或隐藏对应的行
-                if st.session_state.hidden_rows and select_location is not None:   #id和地点都被选择
+
+                # 过滤 行 或 列 数据，并且 进行点击分析按钮的相关操作
+                if st.session_state.hidden_rows and select_location:   #id和地点都被选择         # 根据 selected_indices 显示或隐藏对应的行   根据select_location 隐藏对应的列
                     filtered_df = filtered_df.drop(columns=select_location)   # 移除地点
                     if point2point_clicked:
                         filtered_df = self.point_to_point_analysis(filtered_df)
                     if diffpoint_clicked:
                         filtered_df = self.difference_point_analysis(filtered_df)
+                    if keypoint_clicked and keypoint_choose:
+                        filtered_df = self.key_point_analysis(filtered_df, keypoint_choose)
                     filtered_df = filtered_df.drop(index=list(st.session_state.hidden_rows))    # 移除id索引
-                elif select_location is not None:    # 地点被选择
+                elif select_location:    # 地点被选择
                     filtered_df = filtered_df.drop(columns=select_location)
                     if point2point_clicked:
                         filtered_df = self.point_to_point_analysis(filtered_df)
                     if diffpoint_clicked:
                         filtered_df = self.difference_point_analysis(filtered_df)
+                    if keypoint_clicked and keypoint_choose:
+                        filtered_df = self.key_point_analysis(filtered_df, keypoint_choose)
                 elif st.session_state.hidden_rows:  # id索引被选择
                     if point2point_clicked:
                         filtered_df = self.point_to_point_analysis(filtered_df)
                     if diffpoint_clicked:
                         filtered_df = self.difference_point_analysis(filtered_df)
+                    if keypoint_clicked and keypoint_choose:
+                        filtered_df = self.key_point_analysis(filtered_df, keypoint_choose)
                     filtered_df = filtered_df.drop(index=list(st.session_state.hidden_rows))  # 移除id索引
                 else:         # 地点和 id索引均没有被选择
                     if point2point_clicked:
                         filtered_df = self.point_to_point_analysis(filtered_df)
                     if diffpoint_clicked:
                         filtered_df = self.difference_point_analysis(filtered_df)
+                    # if keypoint_clicked and keypoint_choose:
+                    #     filtered_df = self.key_point_analysis(filtered_df, keypoint_choose)
 
-                # 显示结果，只对前 n 列原数据  进行上色  对后面的分析数据不执行
+                filtered_df = self.key_point_analysis(filtered_df, keypoint_choose)
+                # 显示结果，只对前面的那些列原数据 进行上色，对后面的分析数据不执行
                 column_length = (len(sorted_location) - len(select_location)) if select_location is not None else len(sorted_location)
                 styled_columns = filtered_df.columns[:column_length]  #  排除掉点对点分析、差异点分析等的那些列
 
@@ -789,7 +923,7 @@ class Plotter:
 
                 # 显示过滤后的 DataFrame
                 st.dataframe(styled_df, height=700)
-
+        #####################  需要重新修改
         st.markdown("""
                         ##### 注释：
                         - 下拉菜单：
