@@ -93,7 +93,7 @@ class Plotter:
                 .custom-sub-title {
                     font-size: 21px;
                     font-weight: bold;
-                    margin-left:230px;    #左侧边距
+                    margin-left:300px;    #左侧边距
                 }
                 </style>
             """
@@ -566,7 +566,7 @@ class Plotter:
                                 '目标品种极小值': f"",
                                 '对照品种极大值': f"",
                                 '对照品种极小值': f"",
-                                '差异点列表': ', '.join(diff_locations) if diff_locations else '无'  })
+                                '差异点列表': ', '.join(diff_locations) if diff_locations else '无' })
 
         # 转换为 DataFrame 输出结果
         results_df = pd.DataFrame(results)
@@ -780,7 +780,15 @@ class Plotter:
             # 将全为nan的地点列过滤掉    也要更新地点列表
             trait_summary_df = trait_summary_df.dropna(axis=1,how='all')
             if len(trait_summary_df.columns) == 0:
-                st.markdown("""无数据""")
+                st.markdown("""
+                    <style>
+                    .custom-word {
+                        font-size: 16px;
+                        margin-left: 300px; 
+                    }
+                    </style>
+                    <p class="custom-word">无数据</p>
+                """, unsafe_allow_html=True)
                 continue
             remain_locations = set(trait_summary_df.columns)
             updated_location_set = set(Location_set).intersection(remain_locations)
@@ -807,7 +815,7 @@ class Plotter:
             # 重置索引
             sorted_df.reset_index(drop=True, inplace=True)
 
-            # 设置两列索引
+            # 设置两列布局
             col0,col1 = st.columns((1, 6))
 
             available_indices = list(sorted_df.index)
@@ -817,6 +825,8 @@ class Plotter:
 
             with col0:
                 # 多选框，选项为品种的索引
+                # 使用 <br> 标签插入多行间距
+                st.markdown("<br><br>", unsafe_allow_html=True)
                 selected_indices = st.multiselect(
                     '选择id进行隐藏该行数据',
                     available_indices,  # 使用 DataFrame 的索引作为选项
@@ -834,7 +844,7 @@ class Plotter:
             with col1:
 
                 # 为几个分析设计其对应的布局
-                col11, col12,col13,col14 = st.columns((1,1,3,2))
+                col11, col12,col13,col14,col15 = st.columns((1,1,3,2,2))
                 # 在列中放置按钮并获取点击状态
                 with col11:
                     point2point_clicked = st.button("点对点全点分析", key=trait_name + 'point2point_button')
@@ -881,10 +891,9 @@ class Plotter:
                         filtered_df = self.point_to_point_analysis(filtered_df)
                     if diffpoint_clicked:
                         filtered_df = self.difference_point_analysis(filtered_df)
-                    # if keypoint_clicked and keypoint_choose:
-                    #     filtered_df = self.key_point_analysis(filtered_df, keypoint_choose)
+                    if keypoint_clicked and keypoint_choose:
+                        filtered_df = self.key_point_analysis(filtered_df, keypoint_choose)
 
-                filtered_df = self.key_point_analysis(filtered_df, keypoint_choose)
                 # 显示结果，只对前面的那些列原数据 进行上色，对后面的分析数据不执行
                 column_length = (len(sorted_location) - len(select_location)) if select_location is not None else len(sorted_location)
                 styled_columns = filtered_df.columns[:column_length]  #  排除掉点对点分析、差异点分析等的那些列
